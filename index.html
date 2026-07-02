@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head prefix="website: http://grape65535.jp/tools/uml_draw_tool/index.html">
+<meta charset="utf-8">
+<meta http-equiv="content-language" content="ja">
+<meta name="robots" content="noydir,noodp">
+<meta property="og:url" content="http://grape65535.jp/tools/uml_draw_tool/index.html" />  
+<meta property="og:type" content="website" />  
+<meta property="og:title" content="UML描画ツール" />
+<meta property="og:description" content="" />  
+<meta property="og:site_name" content="UML描画ツール" />
+<meta property="og:image" content="http://grape65535.jp/tools/uml_draw_tool/ogp.png" />
+
+<title>UML DrawTool</title>
+<link rel="stylesheet" media="all" href="./stylesheets/reset.css?body=1">
+<link rel="stylesheet" media="all" href="./stylesheets/layout.css?body=1">
+<link rel="icon" href="./favicon.ico">
+<!-- 外部js -->
+<script src="./javascripts/external/jquery.js?body=1"></script>
+<script src="./javascripts/external/crypto-js.min.js?body=1"></script>
+<script src="./javascripts/external/pdf-lib.min.js?body=1"></script>
+<script src="./javascripts/external/fontkit.umd.min.js?body=1"></script>
+<!-- ユーティリティ関数 -->
+<script src="./javascripts/stop_browser_back.js?body=1"></script>
+<script src="./javascripts/es5_polyfill.js?body=1"></script>
+<script src="./javascripts/array_common_functions.js?body=1"></script>
+<script src="./javascripts/draw_functions.js?body=1"></script>
+<script src="./javascripts/draw_pdf_functions.js?body=1"></script>
+<script src="./javascripts/collider_functions.js?body=1"></script>
+<!-- フレームワーク -->
+<script src="./javascripts/image_manager.js?body=1"></script>
+<script src="./javascripts/input_manager.js?body=1"></script>
+<script src="./javascripts/timer_manager.js?body=1"></script>
+<script src="./javascripts/screen_manager.js?body=1"></script>
+<script src="./javascripts/file_manager.js?body=1"></script>
+<script src="./javascripts/data_manager.js?body=1"></script>
+<script src="./javascripts/storage_manager.js?body=1"></script>
+<script src="./javascripts/html5_canvas_factory.js?body=1"></script>
+<script src="./javascripts/application.js?body=1"></script>
+<!-- 画面 -->
+<script src="./javascripts/screens/screen_base/html_parser.js?body=1"></script>
+<script src="./javascripts/screens/screen_base/style_sheet_parser.js?body=1"></script>
+<script src="./javascripts/screens/screen_base/screen_base.js?body=1"></script>
+<!-- UIオブジェクト -->
+<script src="./javascripts/ui_objects/ui_base/dom_relation.js?body=1"></script>
+<script src="./javascripts/ui_objects/ui_base/dom_shape.js?body=1"></script>
+<script src="./javascripts/ui_objects/ui_base/style.js?body=1"></script>
+<script src="./javascripts/ui_objects/ui_base/layouter.js?body=1"></script>
+<script src="./javascripts/ui_objects/ui_base/presenter.js?body=1"></script>
+<script src="./javascripts/ui_objects/ui_base/ui_base.js?body=1"></script>
+<script src="./javascripts/ui_objects/break.js?body=1"></script>
+<script src="./javascripts/ui_objects/panel.js?body=1"></script>
+<script src="./javascripts/ui_objects/text.js?body=1"></script>
+<script src="./javascripts/ui_objects/child_text.js?body=1"></script>
+<script src="./javascripts/ui_objects/pictuer.js?body=1"></script>
+<script src="./javascripts/ui_objects/button.js?body=1"></script>
+<script src="./javascripts/ui_objects/text_input.js?body=1"></script>
+<script src="./javascripts/ui_objects/multiline_text_input.js?body=1"></script>
+<script src="./javascripts/ui_objects/checkbox.js?body=1"></script>
+<script src="./javascripts/ui_objects/radio.js?body=1"></script>
+<script src="./javascripts/ui_objects/list_item.js?body=1"></script>
+<script src="./javascripts/ui_objects/list.js?body=1"></script>
+<script src="./javascripts/ui_objects/horizontal_list_item.js?body=1"></script>
+<script src="./javascripts/ui_objects/horizontal_list.js?body=1"></script>
+<script src="./javascripts/ui_objects/pull_down_item.js?body=1"></script>
+<script src="./javascripts/ui_objects/pull_down.js?body=1"></script>
+<script src="./javascripts/ui_objects/progress_bar.js?body=1"></script>
+<script src="./javascripts/ui_objects/toggle_panel.js?body=1"></script>
+<!-- アプリケーション実装 -->
+<script src="./javascripts/screens/editor_screen.js?body=1"></script>
+<style>
+
+/* IPAフォント
+  ライセンス: https://moji.or.jp/ipafont/license/
+  頒布元： https://moji.or.jp/ipafont/ipa00303/
+  利用フォント名： IPAゴシック(Ver.003.03)
+*/
+@font-face
+{
+  font-family: 'ipag';
+  src: url('./fonts/ipag.eot?#iefix') format('embedded-opentype'), url('./fonts/ipag.woff') format('woff'), url('./fonts/ipag.otf') format('opentype'), url('./fonts/ipag.ttf') format('truetype');
+}
+
+html,
+body
+{ padding:0;  margin:0;  user-select: none; }
+body
+{ font-size:16px;  font-family: 'ipag', monospace; }
+
+/* 縦幅を横幅の75%のアスペクト比にする */
+/*
+.wrapper
+{ position:relative;  width:100%;  padding-top:50%; }
+*/
+.content
+{ position:absolute;  top:0;  left:0;  width:100%;  height:100%; }
+
+.bg-black
+{ background-color:black; }
+.bg-white
+{ background-color:white; }
+
+</style>
+<script type="text/javascript">
+$(function(){
+
+    $("#loading").remove();
+
+    var canvas_element = $("#fix-screen-size");
+    var canvas_if = new Application();
+    new HTML5CanvasFactory().create( $(canvas_element.get(0)), canvas_if );
+
+} );
+</script>
+</head>
+<body>
+  <div id="loading">loading...</div>
+  <div class="wrapper"><canvas id="fix-screen-size" class="content bg-black"></canvas></div>
+</body>
+</html>
