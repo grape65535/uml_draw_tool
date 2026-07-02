@@ -510,7 +510,7 @@ function EditorScreen(){
   //--------------------------------------
   // 指定座標付近のUMLオブジェクト矩形を取得する
   //--------------------------------------
-  EditorScreen.prototype._findNeerUmlObjectByPoint = function( excep_uml_object, x, y, parent ){
+  EditorScreen.prototype._findNearUmlObjectByPoint = function( except_uml_object, x, y, parent ){
     parent = parent || null;
     
     var priorities = [];
@@ -522,15 +522,15 @@ function EditorScreen(){
     }
 
     // 全てのUMLオブジェクトの中で指定座標に近いものを探す
-    var neer_contact = null;
+    var near_contact = null;
     for ( var i=priorities.length - 1; i>=0; i-- ) {
       // オブジェクトの矩形を構成する線と、座標の違い点を探す
       var uml_object = this._findUmlObjectById( priorities[i] );
       // 指定オブジェクトとリレーションオブジェクトは無視する
-      if ( excep_uml_object.id == uml_object.id || uml_object.type == "relation" ) continue;
+      if ( except_uml_object.id == uml_object.id || uml_object.type == "relation" ) continue;
       var contact = null;
       if ( uml_object.type == "group" ) {
-        contact = this._findNeerUmlObjectByPoint( excep_uml_object, x, y, uml_object );
+        contact = this._findNearUmlObjectByPoint( except_uml_object, x, y, uml_object );
       }
       else {
         contact = this._getDistanceUmlObjectRectByPoint( uml_object, x, y );
@@ -540,11 +540,11 @@ function EditorScreen(){
         if ( 30 < contact.distance ) continue;
 
         // 最も近いものを記録
-        if ( ! neer_contact || ( contact.is_inside && !neer_contact.is_inside ) || neer_contact.distance > contact.distance ) neer_contact = contact;
+        if ( ! near_contact || ( contact.is_inside && !near_contact.is_inside ) || near_contact.distance > contact.distance ) near_contact = contact;
       }
     }
 
-    return neer_contact;
+    return near_contact;
   };
 
   //--------------------------------------
@@ -1680,7 +1680,7 @@ function EditorScreen(){
       // コネクション可能な時
       if ( ! is_not_connection ) {
 
-        var contact = this._findNeerUmlObjectByPoint( uml_object, x, y );
+        var contact = this._findNearUmlObjectByPoint( uml_object, x, y );
         // 接続先がある時
         if ( contact ) {
           // カーソル位置を接続位置だったことにする
@@ -1724,12 +1724,12 @@ function EditorScreen(){
   EditorScreen.prototype._moveLowestPriorityBySelectedUmlObject = function(){
     // 選択中のオブジェクトの現在の優先順位位置を消し、優先順位を先頭（最背面）に移動する
     var selected_uml_objects = this._selectedRootUmlObjects();
-    var selected_umk_object_ids = [];
+    var selected_uml_object_ids = [];
     for ( var i=0; i<selected_uml_objects.length; i++ ) {
       this.save_data.priorities.splice( this.save_data.priorities.indexOf( selected_uml_objects[i].id ), 1 );
-      selected_umk_object_ids[i] = selected_uml_objects[i].id;
+      selected_uml_object_ids[i] = selected_uml_objects[i].id;
     }
-    this.save_data.priorities = selected_umk_object_ids.concat( this.save_data.priorities );
+    this.save_data.priorities = selected_uml_object_ids.concat( this.save_data.priorities );
 
     // 再描画
     this.screen_manager.requestDraw( this );
@@ -1741,17 +1741,17 @@ function EditorScreen(){
   EditorScreen.prototype._moveLowerPriorityBySelectedUmlObject = function(){
     // 選択中のオブジェクトの現在の優先順位位置を消し、１つ前方（背面）に全ての選択中オブジェクトを移動する
     var selected_uml_objects = this._selectedRootUmlObjects();
-    var selected_umk_object_ids = [];
+    var selected_uml_object_ids = [];
     var first_object_priority = null;
     for ( var i=0; i<selected_uml_objects.length; i++ ) {
       var index = this.save_data.priorities.indexOf( selected_uml_objects[i].id );
       this.save_data.priorities.splice( index, 1 );
-      selected_umk_object_ids[i] = selected_uml_objects[i].id;
+      selected_uml_object_ids[i] = selected_uml_objects[i].id;
       if ( null == first_object_priority ) first_object_priority = index;
     }
 
     if ( 0 == first_object_priority ) first_object_priority = 1;
-    this.save_data.priorities.splice( first_object_priority-1, 0, ...selected_umk_object_ids );
+    this.save_data.priorities.splice( first_object_priority-1, 0, ...selected_uml_object_ids );
 
     // 再描画
     this.screen_manager.requestDraw( this );
@@ -1763,17 +1763,17 @@ function EditorScreen(){
   EditorScreen.prototype._moveHigherPriorityBySelectedUmlObject = function(){
     // 選択中のオブジェクトの現在の優先順位位置を消し、１つ後方（前面）に全ての選択中オブジェクトを移動する
     var selected_uml_objects = this._selectedRootUmlObjects();
-    var selected_umk_object_ids = [];
+    var selected_uml_object_ids = [];
     var first_object_priority = null;
     for ( var i=0; i<selected_uml_objects.length; i++ ) {
       var index = this.save_data.priorities.indexOf( selected_uml_objects[i].id );
       this.save_data.priorities.splice( index, 1 );
-      selected_umk_object_ids[i] = selected_uml_objects[i].id;
+      selected_uml_object_ids[i] = selected_uml_objects[i].id;
       if ( null == first_object_priority ) first_object_priority = index;
     }
 
     if ( this.save_data.priorities.length - 1 <= first_object_priority ) first_object_priority = this.save_data.priorities.length - 1;
-    this.save_data.priorities.splice( first_object_priority+1, 0, ...selected_umk_object_ids );
+    this.save_data.priorities.splice( first_object_priority+1, 0, ...selected_uml_object_ids );
 
     // 再描画
     this.screen_manager.requestDraw( this );
@@ -1785,12 +1785,12 @@ function EditorScreen(){
   EditorScreen.prototype._moveHighestPriorityBySelectedUmlObject = function(){
     // 選択中のオブジェクトの現在の優先順位位置を消し、優先順位を後ろ（最前面）に移動する
     var selected_uml_objects = this._selectedRootUmlObjects();
-    var selected_umk_object_ids = [];
+    var selected_uml_object_ids = [];
     for ( var i=0; i<selected_uml_objects.length; i++ ) {
       this.save_data.priorities.splice( this.save_data.priorities.indexOf( selected_uml_objects[i].id ), 1 );
-      selected_umk_object_ids[i] = selected_uml_objects[i].id;
+      selected_uml_object_ids[i] = selected_uml_objects[i].id;
     }
-    this.save_data.priorities.push( ...selected_umk_object_ids );
+    this.save_data.priorities.push( ...selected_uml_object_ids );
 
     // 再描画
     this.screen_manager.requestDraw( this );
@@ -4851,14 +4851,14 @@ function EditorScreen(){
   //--------------------------------------
   // 文字列のパディング
   //--------------------------------------
-  EditorScreen.prototype._findLikelyFifleTitle = function(){
+  EditorScreen.prototype._findLikelyFileTitle = function(){
     var top_left_name = null;
-    var top_left_ditance = null;
+    var top_left_distance = null;
     this._eachUmlObjects( function( uml_object ){
       if ( isIncludeArray( [ "comment", "text_box", "text" ], uml_object.type ) ) {
         var distance = Math.sqrt( uml_object.x*uml_object.x + uml_object.y*uml_object.y );
-        if ( 300 > distance && ( ! top_left_ditance || top_left_ditance > distance ) ) {
-          top_left_ditance = distance;
+        if ( 300 > distance && ( ! top_left_distance || top_left_distance > distance ) ) {
+          top_left_distance = distance;
           top_left_name = uml_object.inner_rects["name"].text;
         }
       }
@@ -5004,7 +5004,7 @@ function EditorScreen(){
       this._refreshPaperSize();
 
       // タイトルがあれば表示する
-      var title_name = this._findLikelyFifleTitle() || "UML DrawTool";
+      var title_name = this._findLikelyFileTitle() || "UML DrawTool";
       $("title").text( title_name );
     }
   }
@@ -5056,15 +5056,15 @@ function EditorScreen(){
     this.grid_size = 10;
 
     // ツールボタンの初期選択はカーソル
-    var buton_object = this.findObjectByName("tool_button_cursor");
-    if ( buton_object ) this.setFocusObject( buton_object );
+    var button_object = this.findObjectByName("tool_button_cursor");
+    if ( button_object ) this.setFocusObject( button_object );
   }
 
   //--------------------------------------
   // JSONでファイル保存
   //--------------------------------------
   EditorScreen.prototype._saveAsJson = function(){
-    var title_name = this._findLikelyFifleTitle();
+    var title_name = this._findLikelyFileTitle();
     this.file_manager.downloadJson( this.save_data, `${ title_name || "uml_diagram" }_${ this._getDateTimeString( new Date() ) }.json` );
     $("title").text( title_name || "UML DrawTool" );
   };
@@ -5074,7 +5074,7 @@ function EditorScreen(){
   //--------------------------------------
   EditorScreen.prototype._saveAsPdf = function(){
     this._exportPdfBlob( function( blob ){
-      var title_name = this._findLikelyFifleTitle();
+      var title_name = this._findLikelyFileTitle();
       this.file_manager.downloadBlob( blob, `${ title_name || "uml_diagram" }_${ this._getDateTimeString( new Date() ) }.pdf` );
       $("title").text( title_name || "UML DrawTool" );
     }.bind(this) );
