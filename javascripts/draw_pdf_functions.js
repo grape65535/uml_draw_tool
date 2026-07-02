@@ -178,7 +178,7 @@ function setPdfAlpha( context, alpha ){
 function setPdfLineWidth( context, border_width ){
   // PDF描画用関数の中には非同期な処理が存在するため、全て非同期化することで描画順序を関数呼び出し順となる様にする
   _wrapAsyncPdfFunction( context, function( resolve, reject ){
-    context.params.line.border_width = line_width;
+    context.params.line.border_width = border_width;
     resolve();
   } );
 }
