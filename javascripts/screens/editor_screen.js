@@ -961,13 +961,13 @@ function EditorScreen(){
 
     // 入力フォームからパラメータを取得する
     var params = {};
-    var keys = [ "fontSize", "nameAlign", "textAlign", "wordBreak", "pathStyle", "lineStyle", "lineStartStyle", "lineEndStyle" ];
+    var keys = [ "fontSize", "nameAlign", "textAlign", "wordBreak", "pathStyle", "lineStyle", "lineStartStyle", "lineEndStyle", "lineColor", "backgroundColor", "textColor", "lineWidth" ];
     for ( var i=0; i<keys.length; i++ ) {
       var object = this.findObjectByName( `input_${ keys[i] }` );
       if ( object ) {
         var value = object.val();
         if ( null != value && "undefined" != typeof value && 0 < value.length ) {
-          if ( "fontSize" == keys[i] ) {
+          if ( "fontSize" == keys[i] || "lineWidth" == keys[i] ) {
             params[ keys[i] ] = parseInt( value );
           }
           else {
@@ -1007,9 +1007,12 @@ function EditorScreen(){
       );
     }
 
-    // UI用のHTML生成
+    // UI用のHTML生成（表示順序を固定する。paramsに存在するキーのみ描画する）
+    var ordered_keys = [ "fontSize", "nameAlign", "textAlign", "wordBreak", "textColor", "pathStyle", "lineStyle", "lineStartStyle", "lineEndStyle", "lineWidth", "lineColor", "backgroundColor" ];
     var html_string = "";
-    for ( var key in params ) {
+    for ( var ki=0; ki<ordered_keys.length; ki++ ) {
+      var key = ordered_keys[ ki ];
+      if ( ! params.hasOwnProperty( key ) ) continue;
       switch ( key ) {
       case "fontSize":
         html_string += `<div>${ key }<input id='input_${ key }' value='${ ( null != params[ key ] ? params[ key ] : "" ) }' /></div>`;
@@ -1063,6 +1066,27 @@ function EditorScreen(){
         options += `<option value='rhombus_black'        ${        "rhombus_black" == params[ key ] ? "selected" : "" }>rhombus(black)</option>`;
         options += `<option value='circle'               ${               "circle" == params[ key ] ? "selected" : "" }>circle</option>`;
         options += `<option value='circle_black'         ${         "circle_black" == params[ key ] ? "selected" : "" }>circle(black)</option>`;
+        html_string += `<div>${ key }<br/><select id='input_${ key }'>${ options }</select></div>`;
+        break;
+
+      case "lineColor":
+        html_string += `<div>${ key }<br/><select id='input_${ key }'>${ this._buildColorOptions( params[ key ], true, false ) }</select></div>`;
+        break;
+
+      case "textColor":
+        html_string += `<div>${ key }<br/><select id='input_${ key }'>${ this._buildColorOptions( params[ key ], true, false ) }</select></div>`;
+        break;
+
+      case "backgroundColor":
+        html_string += `<div>${ key }<br/><select id='input_${ key }'>${ this._buildColorOptions( params[ key ], true, true ) }</select></div>`;
+        break;
+
+      case "lineWidth":
+        var options = "";
+        if ( ! params[ key ] ) options += "<option value=''></option>";
+        for ( var w=1; w<=5; w++ ) {
+          options += `<option value='${ w }' ${ w == params[ key ] ? "selected" : "" }>${ w }px</option>`;
+        }
         html_string += `<div>${ key }<br/><select id='input_${ key }'>${ options }</select></div>`;
         break;
       }
@@ -2065,6 +2089,70 @@ function EditorScreen(){
   };
 
   //--------------------------------------
+  // 選択可能な色のパレット（色名 → RGB各成分[0-255]）
+  //--------------------------------------
+  EditorScreen.prototype._colorPalette = function(){
+    return {
+      black:     [   0,   0,   0 ],
+      red:       [ 220,   0,   0 ],
+      blue:      [   0,   0, 220 ],
+      green:     [   0, 150,   0 ],
+      purple:    [ 140,   0, 180 ],
+      gray:      [ 130, 130, 130 ],
+      yellow:    [ 220, 190,   0 ],
+      brown:     [ 140,  80,  20 ],
+      darkgreen: [   0,  90,  40 ],
+      skyblue:   [  60, 180, 225 ],
+      white:     [ 255, 255, 255 ]
+    };
+  };
+
+  //--------------------------------------
+  // 色名に対応するCanvas用のRGB文字列を取得する（transparentや未定義はnullを返す）
+  //--------------------------------------
+  EditorScreen.prototype._colorNameToRgb = function( color_name ){
+    var rgb = this._colorPalette()[ color_name ];
+    return rgb ? `rgb(${ rgb[0] },${ rgb[1] },${ rgb[2] })` : null;
+  };
+
+  //--------------------------------------
+  // 色名に対応するPDF用の色を取得する（transparentや未定義はnullを返す）
+  //--------------------------------------
+  EditorScreen.prototype._colorNameToPdfColor = function( context, color_name ){
+    var rgb = this._colorPalette()[ color_name ];
+    return rgb ? getPdfColor( context, rgb[0] / 255, rgb[1] / 255, rgb[2] / 255 ) : null;
+  };
+
+  //--------------------------------------
+  // 色選択のoption要素文字列を生成する
+  //   include_white:       選択肢に「白」を含める場合はtrue
+  //   include_transparent: 選択肢に「透明」を含める場合はtrue
+  //--------------------------------------
+  EditorScreen.prototype._buildColorOptions = function( selected_value, include_white, include_transparent ){
+    var colors = [
+      [ "black",     "black" ],
+      [ "red",       "red" ],
+      [ "blue",      "blue" ],
+      [ "green",     "green" ],
+      [ "purple",    "purple" ],
+      [ "gray",      "gray" ],
+      [ "yellow",    "yellow" ],
+      [ "brown",     "brown" ],
+      [ "darkgreen", "dark green" ],
+      [ "skyblue",   "sky blue" ]
+    ];
+    if ( include_white )       colors.push( [ "white",       "white" ] );
+    if ( include_transparent ) colors.push( [ "transparent", "transparent" ] );
+    var options = "";
+    // 複数選択で値が混在している場合は空の選択肢を表示する
+    if ( ! selected_value ) options += "<option value=''></option>";
+    for ( var i=0; i<colors.length; i++ ) {
+      options += `<option value='${ colors[i][0] }' ${ colors[i][0] == selected_value ? "selected" : "" }>${ colors[i][1] }</option>`;
+    }
+    return options;
+  };
+
+  //--------------------------------------
   // 線のスタイルを適用して描画するラッパー
   //--------------------------------------
   EditorScreen.prototype._drawLineWrapper = function( context, line_style, draw_function ){
@@ -2115,8 +2203,17 @@ function EditorScreen(){
     var _zoom = function( value ){
       return value * this.zoom_rate;
     }.bind(this);
-    base_color = base_color || "rgb(0,0,0)";
-    base_bg_color = base_bg_color || "rgb(255,255,255)";
+
+    // 描画色の解決
+    //   base_color / base_bg_color は選択中や関係先などの上書き色。
+    //   上書きが無い場合はオブジェクトのパラメータ（色名）を使う。
+    var line_color = base_color || this._colorNameToRgb( uml_object.params["lineColor"] ) || "rgb(0,0,0)";
+    var text_color = base_color || this._colorNameToRgb( uml_object.params["textColor"] ) || "rgb(0,0,0)";
+    var is_transparent_bg = ( "transparent" == uml_object.params["backgroundColor"] );
+    var fill_color = base_bg_color || this._colorNameToRgb( uml_object.params["backgroundColor"] ) || "rgb(255,255,255)";
+
+    // 線幅の設定（このオブジェクトの描画後に既定の1へ戻す）
+    setLineWidth( context, Math.max( 1, ( uml_object.params["lineWidth"] || 1 ) * this.zoom_rate ) );
 
     // 描画順序について
     // 線、図形、矩形の順で描画
@@ -2145,10 +2242,10 @@ function EditorScreen(){
               if ( points[0].x >  points[2].x && ( points[1].x < points[2].x || points[0].x < points[1].x ) ) is_horizontal = true;
             }
           }
-          drawBezier( context, points, base_color, is_horizontal );
+          drawBezier( context, points, line_color, is_horizontal );
         }
         else {
-          drawLines( context, points, base_color );
+          drawLines( context, points, line_color );
         }
       } );
     }
@@ -2158,27 +2255,32 @@ function EditorScreen(){
       switch( uml_object.inner_shapes[key].type ) {
       case "line":
         this._drawLineWrapper( context, ( uml_object.inner_shapes[key].line_style || uml_object.params["lineStyle"] ), function(){
-          drawLine( context, base_x + _zoom( uml_object.inner_shapes[key].start.x ), base_y + _zoom( uml_object.inner_shapes[key].start.y ), base_x + _zoom( uml_object.inner_shapes[key].end.x ), base_y + _zoom( uml_object.inner_shapes[key].end.y ), base_color, false );
+          drawLine( context, base_x + _zoom( uml_object.inner_shapes[key].start.x ), base_y + _zoom( uml_object.inner_shapes[key].start.y ), base_x + _zoom( uml_object.inner_shapes[key].end.x ), base_y + _zoom( uml_object.inner_shapes[key].end.y ), line_color, false );
         });
         break;
 
       case "rect":
-        if ( uml_object.inner_shapes[key].fill ) drawRect( context, base_x + _zoom( uml_object.inner_shapes[key].x ), base_y + _zoom( uml_object.inner_shapes[key].y ), _zoom( uml_object.inner_shapes[key].width ), _zoom( uml_object.inner_shapes[key].height ), base_bg_color, true );
-        drawRect( context, base_x + _zoom( uml_object.inner_shapes[key].x ), base_y + _zoom( uml_object.inner_shapes[key].y ), _zoom( uml_object.inner_shapes[key].width ), _zoom( uml_object.inner_shapes[key].height ), base_color, false );
+        if ( uml_object.inner_shapes[key].fill && ! is_transparent_bg ) drawRect( context, base_x + _zoom( uml_object.inner_shapes[key].x ), base_y + _zoom( uml_object.inner_shapes[key].y ), _zoom( uml_object.inner_shapes[key].width ), _zoom( uml_object.inner_shapes[key].height ), fill_color, true );
+        drawRect( context, base_x + _zoom( uml_object.inner_shapes[key].x ), base_y + _zoom( uml_object.inner_shapes[key].y ), _zoom( uml_object.inner_shapes[key].width ), _zoom( uml_object.inner_shapes[key].height ), line_color, false );
         break;
 
       case "circle":
         if ( uml_object.inner_shapes[key].fill ) {
-          drawCircle( context, base_x + _zoom( uml_object.inner_shapes[key].x ), base_y + _zoom( uml_object.inner_shapes[key].y ), _zoom( uml_object.inner_shapes[key].radius ), ( uml_object.inner_shapes[key].fill_border_color ? base_color : base_bg_color ), true );
+          // fill_border_color の塗りは線色に追従させ、背景色による塗りは透明時にスキップする
+          if ( uml_object.inner_shapes[key].fill_border_color ) drawCircle( context, base_x + _zoom( uml_object.inner_shapes[key].x ), base_y + _zoom( uml_object.inner_shapes[key].y ), _zoom( uml_object.inner_shapes[key].radius ), line_color, true );
+          else if ( ! is_transparent_bg )                       drawCircle( context, base_x + _zoom( uml_object.inner_shapes[key].x ), base_y + _zoom( uml_object.inner_shapes[key].y ), _zoom( uml_object.inner_shapes[key].radius ), fill_color, true );
         }
-        drawCircle( context, base_x + _zoom( uml_object.inner_shapes[key].x ), base_y + _zoom( uml_object.inner_shapes[key].y ), _zoom( uml_object.inner_shapes[key].radius ), base_color, false );
+        drawCircle( context, base_x + _zoom( uml_object.inner_shapes[key].x ), base_y + _zoom( uml_object.inner_shapes[key].y ), _zoom( uml_object.inner_shapes[key].radius ), line_color, false );
         break;
 
       case "polygon":
         var polygon = [];
         for ( var i=0; i<uml_object.inner_shapes[key].polygon.length; i++ ) polygon.push( { x: base_x + _zoom( uml_object.inner_shapes[key].polygon[i].x ), y: base_y + _zoom( uml_object.inner_shapes[key].polygon[i].y ) } );
-        if ( uml_object.inner_shapes[key].fill ) drawPolygon( context, polygon, ( uml_object.inner_shapes[key].fill_border_color ? base_color : base_bg_color ), true );
-        drawPolygon( context, polygon, base_color, false );
+        if ( uml_object.inner_shapes[key].fill ) {
+          if ( uml_object.inner_shapes[key].fill_border_color ) drawPolygon( context, polygon, line_color, true );
+          else if ( ! is_transparent_bg )                       drawPolygon( context, polygon, fill_color, true );
+        }
+        drawPolygon( context, polygon, line_color, false );
         break;
       }
     }
@@ -2186,8 +2288,8 @@ function EditorScreen(){
     // 矩形描画
     var font_size = uml_object.params["fontSize"] || 12;
     for ( var key in uml_object.inner_rects ) {
-      if ( uml_object.inner_rects[ key ].fill              ) drawRect( context, base_x + _zoom( uml_object.inner_rects[key].x ), base_y + _zoom( uml_object.inner_rects[key].y ), _zoom( uml_object.inner_rects[key].width ), _zoom( uml_object.inner_rects[key].height ), base_bg_color, true );
-      if ( uml_object.inner_rects[ key ].is_border_visible ) drawRect( context, base_x + _zoom( uml_object.inner_rects[key].x ), base_y + _zoom( uml_object.inner_rects[key].y ), _zoom( uml_object.inner_rects[key].width ), _zoom( uml_object.inner_rects[key].height ), base_color, false );
+      if ( uml_object.inner_rects[ key ].fill && ! is_transparent_bg ) drawRect( context, base_x + _zoom( uml_object.inner_rects[key].x ), base_y + _zoom( uml_object.inner_rects[key].y ), _zoom( uml_object.inner_rects[key].width ), _zoom( uml_object.inner_rects[key].height ), fill_color, true );
+      if ( uml_object.inner_rects[ key ].is_border_visible ) drawRect( context, base_x + _zoom( uml_object.inner_rects[key].x ), base_y + _zoom( uml_object.inner_rects[key].y ), _zoom( uml_object.inner_rects[key].width ), _zoom( uml_object.inner_rects[key].height ), line_color, false );
       // テキストがある時は描画
       if ( uml_object.inner_rects[key].has_text ) {
         // 入力中の時は描画しない
@@ -2227,12 +2329,12 @@ function EditorScreen(){
             // 縦書き
             if ( uml_object.inner_rects[ key ].vertical_text ) {
               var offset_y = _zoom( uml_object.inner_rects[ key ].height - 6 ) - text_width;
-              drawVerticalText( context, text_rows[i], x, y + offset_y - align_offset, base_color, _zoom( font_size ), true );
+              drawVerticalText( context, text_rows[i], x, y + offset_y - align_offset, text_color, _zoom( font_size ), true );
               x += _zoom( font_size + 2 );
             }
             // 横書き
             else {
-              drawText( context, text_rows[i], x + align_offset, y, base_color, _zoom( font_size ), true );
+              drawText( context, text_rows[i], x + align_offset, y, text_color, _zoom( font_size ), true );
               y += _zoom( font_size + 2 );
             }
           }
@@ -2240,6 +2342,9 @@ function EditorScreen(){
         }.bind(this) );
       }
     }
+
+    // 線幅を既定値へ戻す（後続の描画へ影響させない）
+    setLineWidth( context, 1 );
   };
 
   /*------------------------------------------------------------------------------
@@ -3248,6 +3353,15 @@ function EditorScreen(){
       break;
 
     }
+
+    // 共通スタイル（色・線幅）の既定値を付与する（オブジェクトのtypeによって不要なものは付与しない）
+    //   lineColor / lineWidth : 線・枠を持たない text には付与しない
+    //   backgroundColor       : 塗り領域を持たない text / relation / 各種線・close には付与しない
+    //   textColor             : 文字列を持つ（fontSizeを持つ）オブジェクトにのみ付与する
+    if ( "text" != type && "undefined" == typeof uml_object.params["lineColor"] ) uml_object.params["lineColor"] = "black";
+    if ( ! isIncludeArray( [ "text", "relation", "vertical_line", "horizontal_line", "close" ], type ) && "undefined" == typeof uml_object.params["backgroundColor"] ) uml_object.params["backgroundColor"] = "white";
+    if ( "text" != type && "undefined" == typeof uml_object.params["lineWidth"] ) uml_object.params["lineWidth"] = 1;
+    if ( "undefined" != typeof uml_object.params["fontSize"] && "undefined" == typeof uml_object.params["textColor"] ) uml_object.params["textColor"] = "black";
 
     // 内部矩形の生成
     uml_object.inner_shapes = this._refreshInnerShape( uml_object, type );
@@ -4695,6 +4809,15 @@ function EditorScreen(){
       this._drawPdfUmlObjectAt( context, base_x, base_y, uml_object.children[key], base_color, base_bg_color );
     }
 
+    // 描画色の解決（オブジェクトのパラメータの色名を使い、無ければ引数の色にフォールバック）
+    var line_color = this._colorNameToPdfColor( context, uml_object.params["lineColor"] ) || base_color;
+    var text_color = this._colorNameToPdfColor( context, uml_object.params["textColor"] ) || base_color;
+    var is_transparent_bg = ( "transparent" == uml_object.params["backgroundColor"] );
+    var fill_color = this._colorNameToPdfColor( context, uml_object.params["backgroundColor"] ) || base_bg_color;
+
+    // 線幅の設定
+    setPdfLineWidth( context, uml_object.params["lineWidth"] || 1 );
+
     // 描画順序について
     // 線、図形、矩形の順で描画
     //   矩形はテキスト表示領域となるので、最後に描画
@@ -4722,10 +4845,10 @@ function EditorScreen(){
               if ( points[0].x >  points[2].x && ( points[1].x < points[2].x || points[0].x < points[1].x ) ) is_horizontal = true;
             }
           }
-          drawPdfBezier( context, points, base_color, is_horizontal );
+          drawPdfBezier( context, points, line_color, is_horizontal );
         }
         else {
-          drawPdfLines( context, points, base_color );
+          drawPdfLines( context, points, line_color );
         }
       }
     } );
@@ -4735,27 +4858,31 @@ function EditorScreen(){
       switch( uml_object.inner_shapes[key].type ) {
       case "line":
         this._drawPdfLineWrapper( context, ( uml_object.inner_shapes[key].line_style || uml_object.params["lineStyle"] ), function(){
-          drawPdfLine( context, base_x + uml_object.inner_shapes[key].start.x, base_y + uml_object.inner_shapes[key].start.y, base_x + uml_object.inner_shapes[key].end.x, base_y + uml_object.inner_shapes[key].end.y, base_color, false );
+          drawPdfLine( context, base_x + uml_object.inner_shapes[key].start.x, base_y + uml_object.inner_shapes[key].start.y, base_x + uml_object.inner_shapes[key].end.x, base_y + uml_object.inner_shapes[key].end.y, line_color, false );
         });
         break;
 
       case "rect":
-        if ( uml_object.inner_shapes[key].fill ) drawPdfRect( context, base_x + uml_object.inner_shapes[key].x, base_y + uml_object.inner_shapes[key].y, uml_object.inner_shapes[key].width, uml_object.inner_shapes[key].height, base_bg_color, true );
-        drawPdfRect( context, base_x + uml_object.inner_shapes[key].x, base_y + uml_object.inner_shapes[key].y, uml_object.inner_shapes[key].width, uml_object.inner_shapes[key].height, base_color, false );
+        if ( uml_object.inner_shapes[key].fill && ! is_transparent_bg ) drawPdfRect( context, base_x + uml_object.inner_shapes[key].x, base_y + uml_object.inner_shapes[key].y, uml_object.inner_shapes[key].width, uml_object.inner_shapes[key].height, fill_color, true );
+        drawPdfRect( context, base_x + uml_object.inner_shapes[key].x, base_y + uml_object.inner_shapes[key].y, uml_object.inner_shapes[key].width, uml_object.inner_shapes[key].height, line_color, false );
         break;
 
       case "circle":
         if ( uml_object.inner_shapes[key].fill ) {
-          drawPdfCircle( context, base_x + uml_object.inner_shapes[key].x, base_y + uml_object.inner_shapes[key].y, uml_object.inner_shapes[key].radius, ( uml_object.inner_shapes[key].fill_border_color ? base_color : base_bg_color ), true );
+          if ( uml_object.inner_shapes[key].fill_border_color ) drawPdfCircle( context, base_x + uml_object.inner_shapes[key].x, base_y + uml_object.inner_shapes[key].y, uml_object.inner_shapes[key].radius, line_color, true );
+          else if ( ! is_transparent_bg )                       drawPdfCircle( context, base_x + uml_object.inner_shapes[key].x, base_y + uml_object.inner_shapes[key].y, uml_object.inner_shapes[key].radius, fill_color, true );
         }
-        drawPdfCircle( context, base_x + uml_object.inner_shapes[key].x, base_y + uml_object.inner_shapes[key].y, uml_object.inner_shapes[key].radius, base_color, false );
+        drawPdfCircle( context, base_x + uml_object.inner_shapes[key].x, base_y + uml_object.inner_shapes[key].y, uml_object.inner_shapes[key].radius, line_color, false );
         break;
 
       case "polygon":
         var polygon = [];
         for ( var i=0; i<uml_object.inner_shapes[key].polygon.length; i++ ) polygon.push( { x: base_x + uml_object.inner_shapes[key].polygon[i].x, y: base_y + uml_object.inner_shapes[key].polygon[i].y } );
-        if ( uml_object.inner_shapes[key].fill ) drawPdfPolygon( context, polygon, ( uml_object.inner_shapes[key].fill_border_color ? base_color : base_bg_color ), true );
-        drawPdfPolygon( context, polygon, base_color, false );
+        if ( uml_object.inner_shapes[key].fill ) {
+          if ( uml_object.inner_shapes[key].fill_border_color ) drawPdfPolygon( context, polygon, line_color, true );
+          else if ( ! is_transparent_bg )                       drawPdfPolygon( context, polygon, fill_color, true );
+        }
+        drawPdfPolygon( context, polygon, line_color, false );
         break;
       }
     }
@@ -4763,8 +4890,8 @@ function EditorScreen(){
     // 矩形描画
     var font_size = uml_object.params["fontSize"] || 12;
     for ( var key in uml_object.inner_rects ) {
-      if ( uml_object.inner_rects[ key ].fill              ) drawPdfRect( context, base_x + uml_object.inner_rects[key].x, base_y + uml_object.inner_rects[key].y, uml_object.inner_rects[key].width, uml_object.inner_rects[key].height, base_bg_color, true );
-      if ( uml_object.inner_rects[ key ].is_border_visible ) drawPdfRect( context, base_x + uml_object.inner_rects[key].x, base_y + uml_object.inner_rects[key].y, uml_object.inner_rects[key].width, uml_object.inner_rects[key].height, base_color, false );
+      if ( uml_object.inner_rects[ key ].fill && ! is_transparent_bg ) drawPdfRect( context, base_x + uml_object.inner_rects[key].x, base_y + uml_object.inner_rects[key].y, uml_object.inner_rects[key].width, uml_object.inner_rects[key].height, fill_color, true );
+      if ( uml_object.inner_rects[ key ].is_border_visible ) drawPdfRect( context, base_x + uml_object.inner_rects[key].x, base_y + uml_object.inner_rects[key].y, uml_object.inner_rects[key].width, uml_object.inner_rects[key].height, line_color, false );
       // テキストがある時は描画
       if ( uml_object.inner_rects[key].has_text ) {
 
@@ -4803,12 +4930,12 @@ function EditorScreen(){
             // 縦書き
             if ( uml_object.inner_rects[ key ].vertical_text ) {
               var offset_y = ( uml_object.inner_rects[ key ].height - 6 ) - text_width;
-              drawPdfVerticalText( clip_context, text_rows[i], x, y + offset_y - align_offset, base_color, font_size );
+              drawPdfVerticalText( clip_context, text_rows[i], x, y + offset_y - align_offset, text_color, font_size );
               x += font_size + 2;
             }
             // 横書き
             else {
-              drawPdfText( clip_context, text_rows[i], x + align_offset, y, base_color, font_size );
+              drawPdfText( clip_context, text_rows[i], x + align_offset, y, text_color, font_size );
               y += font_size + 2;
             }
           }
@@ -4956,11 +5083,48 @@ function EditorScreen(){
     if ( 1.10 > data.version ) {
       // inner_linesのindex番号の再設定
       this._seekSaveData( data.objects, function( uml_object ){
-        uml_object.inner_lines 
+        uml_object.inner_lines
         for ( var i=0; i<uml_object.inner_lines.length; i++ ) {
           uml_object.inner_lines[i].index = i;
         }
       }.bind(this) );
+    }
+
+    if ( 1.4 > data.version ) {
+      // 色・線幅の属性を追加する（既存オブジェクトにも編集可能な既定値を付与）
+      // textColorは文字列を持つオブジェクト（fontSizeを持つもの）にのみ付与する
+      this._seekSaveData( data.objects, function( uml_object ){
+        uml_object.params = uml_object.params || {};
+        if ( "undefined" == typeof uml_object.params["lineColor"]       ) uml_object.params["lineColor"]       = "black";
+        if ( "undefined" == typeof uml_object.params["backgroundColor"] ) uml_object.params["backgroundColor"] = "white";
+        if ( "undefined" == typeof uml_object.params["lineWidth"]       ) uml_object.params["lineWidth"]       = 1;
+        if ( "undefined" != typeof uml_object.params["fontSize"] && "undefined" == typeof uml_object.params["textColor"] ) uml_object.params["textColor"] = "black";
+      } );
+    }
+
+    if ( 1.5 > data.version ) {
+      // 文字列を持たない（fontSizeを持たない）オブジェクトからtextColorを削除する
+      this._seekSaveData( data.objects, function( uml_object ){
+        if ( uml_object.params && "undefined" == typeof uml_object.params["fontSize"] ) {
+          delete uml_object.params["textColor"];
+        }
+      } );
+    }
+
+    if ( 1.6 > data.version ) {
+      // typeに応じて不要な色・線幅の属性を削除する
+      //   text                                            : lineColor / lineWidth
+      //   text / relation / vertical_line / horizontal_line / close : backgroundColor
+      this._seekSaveData( data.objects, function( uml_object ){
+        if ( ! uml_object.params ) return;
+        if ( "text" == uml_object.type ) {
+          delete uml_object.params["lineColor"];
+          delete uml_object.params["lineWidth"];
+        }
+        if ( isIncludeArray( [ "text", "relation", "vertical_line", "horizontal_line", "close" ], uml_object.type ) ) {
+          delete uml_object.params["backgroundColor"];
+        }
+      } );
     }
 
     data.version = this.current_version;
@@ -5103,7 +5267,7 @@ function EditorScreen(){
 
     // アプリケーション名
     this.application_name = "uml_draw_tool";
-    this.current_version = 1.3;
+    this.current_version = 1.6;
 
     // 画像管理を生成
     this.image_manager = ( new ImageManager() ).initialize(this);
@@ -5501,6 +5665,10 @@ toggle_panel
         case "input_lineStyle":
         case "input_lineStartStyle":
         case "input_lineEndStyle":
+        case "input_lineColor":
+        case "input_backgroundColor":
+        case "input_textColor":
+        case "input_lineWidth":
           this._setSelectedUmlObjectParams();
           break;
         }

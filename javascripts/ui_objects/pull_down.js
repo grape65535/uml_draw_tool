@@ -283,12 +283,44 @@ function PullDown(){
   };
 
   //--------------------------------------
+  // 画面（ルート）の高さを取得する（取得できない場合はnull）
+  //--------------------------------------
+  PullDown.prototype._getScreenHeight = function(){
+    var seek = this;
+    while ( seek ) {
+      if ( seek.screen && "number" == typeof seek.screen.height ) return seek.screen.height;
+      seek = seek.parent;
+    }
+    return null;
+  };
+
+  //--------------------------------------
+  // メニュー（選択肢）を展開するtop位置を算出する
+  //   既定は入力欄の直下（下方向展開）。
+  //   選択肢が多く画面下端をはみ出す場合は、選択肢の下端が画面下端に揃う位置まで引き上げる。
+  //--------------------------------------
+  PullDown.prototype._calcMenuTop = function( screen_height ){
+    var default_top = this.height - ( this.style.margin[0] + this.style.border_width[0] + this.style.padding[0] );
+    var menu_top = default_top;
+
+    if ( this.menu_visibility && null != screen_height ) {
+      // 既定（下方向展開）時の選択肢下端の画面Y座標
+      var menu_bottom = this.screenPosition().y + this.height + this.menu_panel.height;
+      if ( menu_bottom > screen_height ) {
+        menu_top -= ( menu_bottom - screen_height );
+      }
+    }
+
+    return menu_top;
+  };
+
+  //--------------------------------------
   // スタイルを子孫含めて更新
   //--------------------------------------
   PullDown.prototype.refreshStyle = function(){
     // メニュー部分の位置の調整
     this.menu_panel.setDynamicStyleAttr( "left", -( this.style.border_width[3] + this.style.padding[3] ) );
-    this.menu_panel.setDynamicStyleAttr( "top", this.height - ( this.style.margin[0] + this.style.border_width[0] + this.style.padding[0] ) );
+    this.menu_panel.setDynamicStyleAttr( "top", this._calcMenuTop( this._getScreenHeight() ) );
     // 高さは1行のサイズに固定しているので、マージンなどが指定された時のための補正を行う
     this.setDynamicStyleAttr( 
       "height",
