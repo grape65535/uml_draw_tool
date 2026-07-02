@@ -76,9 +76,9 @@ function DataManager(){
   // 履歴に記録する
   //--------------------------------------
   DataManager.prototype.storeHistory = function(){
-    // 履歴に最新のデータを記録する
+    // 履歴に最新のデータを記録する（this.dataと参照を共有しないよう複製して保持する）
     this.histories.splice( this.history_index + 1, this.histories.length );
-    this.histories.push( this.data )
+    this.histories.push( deepCopy( this.data ) )
     this.history_index = this.histories.length - 1;
 
     // 履歴数の上限管理
@@ -125,7 +125,8 @@ function DataManager(){
   DataManager.prototype.undo = function(){
     if ( 0 < this.history_index && 1 < this.histories.length ) {
       this.history_index--;
-      this.data = this.histories[ this.history_index ];
+      // 履歴と参照を共有しないよう複製したものを現在データとする
+      this.data = deepCopy( this.histories[ this.history_index ] );
     }
     return this.getData();
   };
@@ -136,7 +137,8 @@ function DataManager(){
   DataManager.prototype.redo = function(){
     if ( this.histories.length - 1 > this.history_index && 1 < this.histories.length ) {
       this.history_index++;
-      this.data = this.histories[ this.history_index ];
+      // 履歴と参照を共有しないよう複製したものを現在データとする
+      this.data = deepCopy( this.histories[ this.history_index ] );
     }
     return this.getData();
   };
