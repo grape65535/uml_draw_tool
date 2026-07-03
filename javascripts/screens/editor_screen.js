@@ -2107,17 +2107,20 @@ function EditorScreen(){
   //--------------------------------------
   EditorScreen.prototype._colorPalette = function(){
     return {
-      black:     [   0,   0,   0 ],
-      red:       [ 220,   0,   0 ],
-      blue:      [   0,   0, 220 ],
-      green:     [   0, 150,   0 ],
-      purple:    [ 140,   0, 180 ],
-      gray:      [ 130, 130, 130 ],
-      yellow:    [ 220, 190,   0 ],
-      brown:     [ 140,  80,  20 ],
-      darkgreen: [   0,  90,  40 ],
-      skyblue:   [  60, 180, 225 ],
-      white:     [ 255, 255, 255 ]
+      black:      [   0,   0,   0 ],
+      gray:       [ 130, 130, 130 ],
+      white:      [ 255, 255, 255 ],
+      red:        [ 220,   0,   0 ],
+      brown:      [ 140,  80,  20 ],
+      pink:       [ 255, 120, 120 ],  // 明るい赤
+      green:      [   0, 150,   0 ],
+      darkgreen:  [   0,  90,  40 ],
+      lightgreen: [ 140, 215, 120 ],
+      blue:       [   0,   0, 220 ],
+      darkblue:   [   0,   0, 120 ],
+      skyblue:    [  60, 180, 225 ],
+      yellow:     [ 220, 190,   0 ],
+      purple:     [ 140,   0, 180 ]
     };
   };
 
@@ -2143,19 +2146,25 @@ function EditorScreen(){
   //   include_transparent: 選択肢に「透明」を含める場合はtrue
   //--------------------------------------
   EditorScreen.prototype._buildColorOptions = function( selected_value, include_white, include_transparent ){
+    // 表示順: black, gray, (white), red, brown, pink, green, dark green, light green, blue, dark blue, sky blue, yellow, purple, (transparent)
     var colors = [
-      [ "black",     "black" ],
-      [ "red",       "red" ],
-      [ "blue",      "blue" ],
-      [ "green",     "green" ],
-      [ "purple",    "purple" ],
-      [ "gray",      "gray" ],
-      [ "yellow",    "yellow" ],
-      [ "brown",     "brown" ],
-      [ "darkgreen", "dark green" ],
-      [ "skyblue",   "sky blue" ]
+      [ "black",      "black" ],
+      [ "gray",       "gray" ]
     ];
-    if ( include_white )       colors.push( [ "white",       "white" ] );
+    if ( include_white ) colors.push( [ "white", "white" ] );
+    colors = colors.concat( [
+      [ "red",        "red" ],
+      [ "brown",      "brown" ],
+      [ "pink",       "pink" ],
+      [ "green",      "green" ],
+      [ "darkgreen",  "dark green" ],
+      [ "lightgreen", "light green" ],
+      [ "blue",       "blue" ],
+      [ "darkblue",   "dark blue" ],
+      [ "skyblue",    "sky blue" ],
+      [ "yellow",     "yellow" ],
+      [ "purple",     "purple" ]
+    ] );
     if ( include_transparent ) colors.push( [ "transparent", "transparent" ] );
     var options = "";
     // 複数選択で値が混在している場合は空の選択肢を表示する
