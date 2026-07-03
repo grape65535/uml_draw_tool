@@ -1983,6 +1983,11 @@ function EditorScreen(){
   EditorScreen.prototype._ungroupSelectedUmlObjects = function(){
     if ( 0 == this.select_uml_object_ids.length ) return;
 
+    // 選択の変更前に、現在の入力欄の内容を「現在の選択オブジェクト」へ反映（コミット）しておく。
+    // これを行わないと、解除後に選択が子オブジェクト群へ変わった後の再コミットで、
+    // 解除前の入力欄の値が他のオブジェクトへ誤って適用されてしまう。
+    this._setSelectedUmlObjectParams();
+
     // 選択中のオブジェクトがグループならば解除する
     for ( var i=0; i<this.select_uml_object_ids.length; i++ ) {
       var uml_object = this._getRootUmlObjectByKey( this.select_uml_object_ids[i] );
@@ -2013,6 +2018,12 @@ function EditorScreen(){
 
     // データの記録
     this.data_manager.setData( this.save_data );
+
+    // 手動での複数選択時と同等の状態にする
+    // （解除で選択が子オブジェクト群へ変わったため、各オブジェクトの変形トグルとパラメータ入力欄を再生成する）
+    this._sortSelectedUmlObjectByPriority();
+    this._generateDraggableToggles();
+    this._refreshSelectedUmlObjectParams();
 
     // 再描画
     this.screen_manager.requestDraw( this );
