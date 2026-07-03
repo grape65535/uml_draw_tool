@@ -4680,6 +4680,13 @@ function EditorScreen(){
     // 関連元となる選択済みのオブジェクトが無ければ何もしない
     if ( ! this.select_uml_object_ids || 0 == this.select_uml_object_ids.length ) return true;
 
+    // 選択中のオブジェクトがグループの場合はこの機能を動作させない
+    // （グループ内の特定オブジェクトを選択＝ドリルインしている場合は当該オブジェクトが対象となり動作する）
+    var selected_entities = this._selectedUmlObjects();
+    for ( var i=0; i<selected_entities.length; i++ ) {
+      if ( ! selected_entities[i] || "group" == selected_entities[i].type ) return true;
+    }
+
     // 選択中のオブジェクトから、最も指定方位に近いオブジェクトを取得
     var selected_uml_objects = this._selectedDescendantUmlObjects();
     var selected_uml_object = this._findUmlObjectByDirection( selected_uml_objects, direction );
