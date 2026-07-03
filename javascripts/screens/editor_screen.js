@@ -3768,12 +3768,14 @@ function EditorScreen(){
 
       var uml_object_keys = [];
       switch ( this.select_tool_name ) {
-      case "tool_button_range":
-        uml_object_keys = this._findIncludeUmlObjectKeysInRect( this.dragging_rect.x, this.dragging_rect.y, this.dragging_rect.width, this.dragging_rect.height );
-        break;
-
       case "tool_button_contain_range":
         uml_object_keys = this._findContainUmlObjectKeysInRect( this.dragging_rect.x, this.dragging_rect.y, this.dragging_rect.width, this.dragging_rect.height );
+        break;
+
+      case "tool_button_range":
+      default:
+        // 範囲選択（交差）ツール、またはカーソルツール中のSHIFT＋ドラッグ
+        uml_object_keys = this._findIncludeUmlObjectKeysInRect( this.dragging_rect.x, this.dragging_rect.y, this.dragging_rect.width, this.dragging_rect.height );
         break;
 
       }
@@ -5608,7 +5610,8 @@ toggle_panel
     this._blurInputtingByClick( statuses );
 
     // 以下、オブジェクトの入力よりも優先して処理させたいドラッグ関連の処理（オブジェクトを先にするとスクロールが優先してしまうため）
-    if ( this.select_tool_name == "tool_button_cursor" ) {
+    // カーソルツールでもSHIFT押下中のドラッグは範囲選択（交差）として扱う
+    if ( this.select_tool_name == "tool_button_cursor" && ! statuses.isPressKey( KEYCODE_SHIFT ) ) {
 
       // 選択中のオブジェクトの変形
       if ( this._editSelectedUmlObjectsByDrag( statuses ) ) return true;
