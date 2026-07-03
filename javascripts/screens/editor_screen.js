@@ -708,9 +708,13 @@ function EditorScreen(){
       var current_root_uml_object = this._getRootUmlObjectByKey( this.select_uml_object_ids[i] );
       // 同じ根だった
       if ( root_uml_object == current_root_uml_object ) {
+        // 交換前に、現在の入力欄の内容を選択中オブジェクトへ反映しておく
+        this._setSelectedUmlObjectParams();
         this.select_uml_object_ids[i] = this._getSelectableUmlObjectKeyByKey( uml_object_key );
         this._sortSelectedUmlObjectByPriority();
         this._generateDraggableToggles();
+        // 交換後の選択（グループ内の特定オブジェクト等）に合わせてパラメータ欄を更新する
+        this._refreshSelectedUmlObjectParams();
         return true;
       }
     }
@@ -955,6 +959,20 @@ function EditorScreen(){
   };
 
   //--------------------------------------
+  // オブジェクトのinner_shapesを再帰的に再生成する（グループの場合は子孫それぞれを再生成）
+  //--------------------------------------
+  EditorScreen.prototype._refreshInnerShapeByObjectDeep = function( uml_object ){
+    if ( "group" == uml_object.type ) {
+      for ( var key in uml_object.children ) {
+        this._refreshInnerShapeByObjectDeep( uml_object.children[ key ] );
+      }
+    }
+    else {
+      uml_object.inner_shapes = this._refreshInnerShape( uml_object, uml_object.type );
+    }
+  };
+
+  //--------------------------------------
   // 選択オブジェクトにパラメータを設定する
   //--------------------------------------
   EditorScreen.prototype._setSelectedUmlObjectParams = function(){
@@ -977,13 +995,15 @@ function EditorScreen(){
       }
     }
 
-    // 選択中のUMLオブジェクトにパラメータを設定する
-    var selected_uml_objects = this._selectedRootUmlObjects();
+    // 選択中のUMLオブジェクト（実体）にパラメータを設定する。
+    //   グループ全体を選択している場合はグループに適用（_setUmlObjectParamsが子孫へ再帰適用）、
+    //   グループ内の特定オブジェクトを選択（ドリルイン）している場合は当該オブジェクトのみに適用される。
+    var selected_uml_objects = this._selectedUmlObjects();
     for ( var i=0; i<selected_uml_objects.length; i++ ) {
       this._setUmlObjectParams( selected_uml_objects[i], params );
 
-      // 内部矩形の再生成
-      selected_uml_objects[i].inner_shapes = this._refreshInnerShape( selected_uml_objects[i], selected_uml_objects[i].type );
+      // 内部矩形（inner_shapes）の再生成（グループの場合は子孫それぞれを再生成）
+      this._refreshInnerShapeByObjectDeep( selected_uml_objects[i] );
     }
 
     // データの記録
@@ -997,16 +1017,16 @@ function EditorScreen(){
   // 選択オブジェクトに関するパラメータ入力UIを生成する
   //--------------------------------------
   EditorScreen.prototype._refreshSelectedUmlObjectParams = function(){
-    // 各選択オブジェクトの利用可能なパラメータを個別に収集する
-    var selected_uml_objects = this._selectedRootUmlObjects();
+    // 選択を末端（グループの子孫まで展開したリーフ）のオブジェクト単位で収集する。
+    // グループを選択した場合は、その構成要素すべてを個別に対象とする（＝論理積を取るため）。
+    // グループ内の特定オブジェクトを選択（ドリルイン）した場合は、そのオブジェクトのみが対象となる。
+    var leaf_uml_objects = this._selectedDescendantUmlObjects();
     var params_list = [];
-    for ( var i=0; i<selected_uml_objects.length; i++ ) {
-      var object_params = {};
-      this._getUmlObjectParams( selected_uml_objects[i], object_params );
-      params_list.push( object_params );
+    for ( var i=0; i<leaf_uml_objects.length; i++ ) {
+      params_list.push( leaf_uml_objects[i].params );
     }
 
-    // 全ての選択オブジェクトに共通して存在するパラメータ（論理積）だけを対象とする。
+    // 全ての対象オブジェクトに共通して存在するパラメータ（論理積）だけを対象とする。
     // 値が全オブジェクトで一致すればその値、異なる場合はnull（未選択表示）とする。
     var params = {};
     if ( 0 < params_list.length ) {
