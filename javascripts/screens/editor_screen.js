@@ -1918,7 +1918,17 @@ function EditorScreen(){
       var parent = this._findUmlObjectById( uml_object.parent_id )
       if ( parent.type == "group" ) this._updateGroupedUmlObjectRect( parent, true );
     }
-  };  
+  };
+
+  //--------------------------------------
+  // 指定UMLオブジェクトの親がグループならば、その包含矩形を更新する
+  //--------------------------------------
+  EditorScreen.prototype._updateParentGroupRect = function( uml_object ){
+    if ( uml_object && uml_object.parent_id ) {
+      var parent = this._findUmlObjectById( uml_object.parent_id );
+      if ( parent && "group" == parent.type ) this._updateGroupedUmlObjectRect( parent );
+    }
+  };
 
   //--------------------------------------
   // 現在選択中のUMLオブジェクトをグループ化する
@@ -4319,9 +4329,11 @@ function EditorScreen(){
           }
           // それ以外のオブジェクトの時
           else {
-            // 選択中オブジェクトの現在の座標を記録する
+            // 選択中オブジェクト（実体）の現在の座標を記録する。
+            // グループ全体を選択している場合はグループを、グループ内の特定オブジェクトを選択（ドリルイン）
+            // している場合は当該オブジェクトだけを移動対象とする。
             var drag_start_position_map = {};
-            var selected_uml_objects = this._selectedRootUmlObjects();
+            var selected_uml_objects = this._selectedUmlObjects();
             for ( var i=0; i<selected_uml_objects.length; i++ ) {
               drag_start_position_map[ selected_uml_objects[i].id ] = {
                 x: selected_uml_objects[i].x,
@@ -4374,11 +4386,12 @@ function EditorScreen(){
         move_amount_y = Math.floor( ( move_amount_y / this.grid_size ) ) * this.grid_size;
       }
 
-      // 選択中のオブジェクトを移動する
-      var selected_uml_objects = this._selectedRootUmlObjects();
+      // 選択中のオブジェクト（実体）を移動する
+      var selected_uml_objects = this._selectedUmlObjects();
       for ( var i=0; i<selected_uml_objects.length; i++ ) {
         var root_uml_object = selected_uml_objects[i];
         var frag_start_pos = drag_starting_data.drag_start_position_map[ root_uml_object.id ];
+        if ( ! frag_start_pos ) continue;
 
         if ( "relation" != root_uml_object.type ) {
           this._moveUmlObject(
@@ -4407,6 +4420,8 @@ function EditorScreen(){
       for ( var i=0; i<selected_uml_objects.length; i++ ) {
         // 移動に伴って、リレーション先に影響がある時の座標更新
         this._updateRelationUmlObject( selected_uml_objects[i] );
+        // グループ内メンバーを移動した場合は、親グループの包含矩形を追従させる
+        this._updateParentGroupRect( selected_uml_objects[i] );
       }
 
       // 画面端ならここでスクロールもさせる
@@ -4418,8 +4433,8 @@ function EditorScreen(){
     }
     // ドロップ
     else if ( statuses.isDrop( KEYCODE_CURSOR ) ) {
-      // 選択中のオブジェクトを移動する
-      var selected_uml_objects = this._selectedRootUmlObjects();
+      // 選択中のオブジェクト（実体）の移動を確定する
+      var selected_uml_objects = this._selectedUmlObjects();
       for ( var i=0; i<selected_uml_objects.length; i++ ) {
         var root_uml_object = selected_uml_objects[i];
         // 内部矩形の再生成
@@ -4428,8 +4443,10 @@ function EditorScreen(){
         // 再起的に関係先の内部矩形を更新する
         this._refreshInnerShapeRecursion( root_uml_object );
 
-        // グループを移動時はグループの矩形を更新する
+        // グループを移動時はグループの矩形を更新する。
+        // グループ内メンバーを移動した場合は、親グループの包含矩形を更新する。
         if ( root_uml_object.type == "group" ) this._updateGroupedUmlObjectRect( root_uml_object );
+        else this._updateParentGroupRect( root_uml_object );
       }
 
       // ドラッグ開始時点での情報を取得
