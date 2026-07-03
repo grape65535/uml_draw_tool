@@ -5928,7 +5928,17 @@ toggle_panel
     case "blur_textarea":
       this._blurInputting();
       break;
-    }  
+
+    // テキスト入力モードの解除（ESCキー押下など）。対象オブジェクトの選択は維持する
+    case "request_blur_textarea":
+      if ( this.inputting_uml_object ) {
+        this._blurInputting();
+        // 編集内容を記録して再描画（選択状態はそのまま）
+        this.data_manager.setData( this.save_data );
+        this.screen_manager.requestDraw( this );
+      }
+      break;
+    }
   };
 
   //--------------------------------------
