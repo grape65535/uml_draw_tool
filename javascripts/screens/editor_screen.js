@@ -3656,8 +3656,24 @@ function EditorScreen(){
           }
         }
         else {
-          // 選択切替。既に選択済みなら文字入力可能かを判断する
-          if ( this._selectUmlObjectByKey( uml_object_key ) ) {
+          // 段階的な選択・文字入力のため、選択切替の「前」に、
+          // クリックしたオブジェクト「自体」が既に選択済みかどうかを実体（ルートではなくオブジェクト一致）で判定する。
+          //   グループの場合: 1回目=グループ選択、2回目=メンバー選択（ここでは文字入力しない）、
+          //                   3回目（メンバーが選択済みの状態で文字矩形を再クリック）=文字入力、となる。
+          var clicked_uml_object = this._findUmlObjectByKey( uml_object_key );
+          var is_already_selected_object = false;
+          for ( var select_index=0; select_index<this.select_uml_object_ids.length; select_index++ ) {
+            if ( this._findUmlObjectByKey( this.select_uml_object_ids[ select_index ] ) === clicked_uml_object ) {
+              is_already_selected_object = true;
+              break;
+            }
+          }
+
+          // 選択切替（グループ内メンバーへのドリルイン選択を含む）
+          this._selectUmlObjectByKey( uml_object_key );
+
+          // クリックしたオブジェクト自体が既に選択済みだった場合にのみ文字入力可能かを判断する
+          if ( is_already_selected_object ) {
             var selectable_key = this._getSelectableUmlObjectKeyByKey( uml_object_key );
             var shape = this._getUmlObjectInnerShapeByKey( selectable_key );
             // 文字入力を行う
