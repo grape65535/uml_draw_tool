@@ -3655,6 +3655,12 @@ function EditorScreen(){
       // 座標位置のUMLオブジェクトを取得
       var uml_object_key = this._findHoverUmlObjectKeyByPoint( cursor_position.x, cursor_position.y );
       if ( uml_object_key ) {
+        // クリックでオブジェクトを対象にした場合、そのオブジェクト位置を次のペースト基準にする（右下へ少しずらす）
+        var paste_base_object = this._findUmlObjectByKey( uml_object_key ) || this._getRootUmlObjectByKey( uml_object_key );
+        if ( paste_base_object ) {
+          this.paste_base_position = { x: paste_base_object.x + ( this.grid_size * 2 ), y: paste_base_object.y + ( this.grid_size * 2 ) };
+        }
+
         // SHIFTを押しながらならば、選択中のオブジェクトに追加。そうでなければ再選択
         if ( statuses.isPressKey( KEYCODE_SHIFT ) ) {
           // 既に選択済み？
@@ -3716,6 +3722,12 @@ function EditorScreen(){
       }
       // クリック位置には何もなかった
       else {
+
+        // 何も無い場所をクリックした場合、その位置を次のペースト基準にする（グリッド吸着）
+        this.paste_base_position = {
+          x: Math.round( cursor_position.x / this.grid_size ) * this.grid_size,
+          y: Math.round( cursor_position.y / this.grid_size ) * this.grid_size
+        };
 
         // SHIFT押下してないのなら、現在選択しているものを全てキャンセル
         if ( ! statuses.isPressKey( KEYCODE_SHIFT ) ) {
@@ -4476,6 +4488,9 @@ function EditorScreen(){
     // 仮想クリップボード（localStorage）に記録する
     localStorage.setItem( this.application_name + "_clipboard", JSON.stringify( this.clipboard ) );
 
+    // 新規にコピーしたので、ペースト基準位置をリセットする（次のクリックまでは従来のコピー元基準でカスケード）
+    this.paste_base_position = null;
+
     // クリップボードに転送する
     //navigator.clipboard.writeText( JSON.stringify( this.clipboard ) ).then();
   };
@@ -4605,8 +4620,8 @@ function EditorScreen(){
   // クリップボードデータからUMLオブジェクトを生成
   //--------------------------------------
   EditorScreen.prototype._createUmlObjectsByClipboard = function( trans_x, trans_y ){
-    if ( "number" != typeof trans_x ) trans_x = 60 * this.clipboard.paste_count;
-    if ( "number" != typeof trans_y ) trans_y = 60 * this.clipboard.paste_count;
+    // 呼び出し側から平行移動量が明示指定されているか（関連ペーストなどはこちら。ペースト基準位置は使わない）
+    var is_explicit_trans = ( "number" == typeof trans_x && "number" == typeof trans_y );
 
     // クリップボードからオブジェクトを生成
     var known_ids = {};
@@ -4629,6 +4644,27 @@ function EditorScreen(){
       this.save_data.objects[ created_uml_objects[i].id ] = created_uml_objects[i];
       this.save_data.priorities.push( created_uml_objects[i].id );
     }
+
+    // 平行移動量の決定（明示指定が無い場合）
+    if ( ! is_explicit_trans ) {
+      if ( this.paste_base_position ) {
+        // クリップボード内容の左上を、ペースト基準位置に合わせる
+        var content_rect = this._getRectByUmlObjects( created_uml_objects );
+        trans_x = this.paste_base_position.x - content_rect.x;
+        trans_y = this.paste_base_position.y - content_rect.y;
+        // 連続ペースト用に基準位置を少しずらす（カスケード）
+        this.paste_base_position = {
+          x: this.paste_base_position.x + ( this.grid_size * 2 ),
+          y: this.paste_base_position.y + ( this.grid_size * 2 )
+        };
+      }
+      else {
+        // 基準位置が未設定の間は、従来通りコピー元の位置を基準にカスケードする
+        trans_x = 60 * this.clipboard.paste_count;
+        trans_y = 60 * this.clipboard.paste_count;
+      }
+    }
+
     // オブジェクトの登録が完了してから移動処理を行う（オブジェクトが全て登録されてから実施しないと、リレーションに矛盾が発生する）
     for ( var i=0; i<created_uml_objects.length; i++ ) {
       // 配置位置をコピー元からずらす
@@ -5295,6 +5331,9 @@ function EditorScreen(){
     // クリップボード
     this.clipboard = {};
 
+    // ペーストの基準位置（クリック操作で更新される。nullの間は従来のコピー元基準でカスケード）
+    this.paste_base_position = null;
+
     // グリッドサイズ
     this.grid_size = 10;
 
@@ -5672,6 +5711,16 @@ toggle_panel
 
       // 選択中オブジェクトのドラッグ移動
       if ( this._moveSelectedUmlObjectsByDrag( statuses ) ) return true;
+
+      // ここに到達するドラッグ開始は、変形でも移動でもない（＝空エリアのスクロール等）ドラッグ。
+      // スクロール用ドラッグの開始位置を、次のペーストの基準位置にする（クリック時と同様）。
+      if ( statuses.isDrag( KEYCODE_CURSOR ) ) {
+        var drag_paper_position = this._getPaperOffsetPosition( statuses.getDragPosition() );
+        this.paste_base_position = {
+          x: Math.round( drag_paper_position.x / this.grid_size ) * this.grid_size,
+          y: Math.round( drag_paper_position.y / this.grid_size ) * this.grid_size
+        };
+      }
     }
     // オブジェクトの範囲選択
     else {
