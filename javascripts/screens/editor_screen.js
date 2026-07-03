@@ -997,14 +997,28 @@ function EditorScreen(){
   // 選択オブジェクトに関するパラメータ入力UIを生成する
   //--------------------------------------
   EditorScreen.prototype._refreshSelectedUmlObjectParams = function(){
-    // パラメータ収集
-    var params = {};
+    // 各選択オブジェクトの利用可能なパラメータを個別に収集する
     var selected_uml_objects = this._selectedRootUmlObjects();
+    var params_list = [];
     for ( var i=0; i<selected_uml_objects.length; i++ ) {
-      this._getUmlObjectParams(
-        selected_uml_objects[i],
-        params
-      );
+      var object_params = {};
+      this._getUmlObjectParams( selected_uml_objects[i], object_params );
+      params_list.push( object_params );
+    }
+
+    // 全ての選択オブジェクトに共通して存在するパラメータ（論理積）だけを対象とする。
+    // 値が全オブジェクトで一致すればその値、異なる場合はnull（未選択表示）とする。
+    var params = {};
+    if ( 0 < params_list.length ) {
+      for ( var key in params_list[0] ) {
+        var is_common = true;
+        var value = params_list[0][ key ];
+        for ( var i=1; i<params_list.length; i++ ) {
+          if ( ! params_list[i].hasOwnProperty( key ) ) { is_common = false; break; }
+          if ( value != params_list[i][ key ] ) value = null;
+        }
+        if ( is_common ) params[ key ] = value;
+      }
     }
 
     // UI用のHTML生成（表示順序を固定する。paramsに存在するキーのみ描画する）
