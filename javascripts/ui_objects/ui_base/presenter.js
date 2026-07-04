@@ -66,10 +66,10 @@ function Presenter(){
   // 枠線の外側の座標取得
   //--------------------------------------
   Presenter.prototype._borderPositions = function(){
-    // 枠線の幅と高さを計算
+    // 枠線の幅と高さを計算（負のサイズは半径計算で負の半径を生み描画エラーになるため0でクランプする）
     var border = {
-      width:  this.width - ( this.style.margin[1] + this.style.margin[3] ),
-      height: this.height - ( this.style.margin[0] + this.style.margin[2] ),
+      width:  Math.max( 0, this.width - ( this.style.margin[1] + this.style.margin[3] ) ),
+      height: Math.max( 0, this.height - ( this.style.margin[0] + this.style.margin[2] ) ),
     };
     // 枠線の半分のサイズを計算
     var half_border = {

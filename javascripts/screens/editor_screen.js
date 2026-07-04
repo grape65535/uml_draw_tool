@@ -3630,6 +3630,83 @@ function EditorScreen(){
       this.inputting_uml_object = null;
       this.inputting_uml_object_shape = null;
     }
+    // インスタントラベル入力中だった場合
+    else if ( this.inputting_instant_label ) {
+      var label_position = this.inputting_instant_label;
+      this.inputting_instant_label = null;
+      var text = this.requestBlurTextarea();
+      // 1文字以上入力されていた場合のみ、textオブジェクトを同じ位置に生成する
+      if ( text && 0 < text.length ) {
+        this._createInstantLabelTextObject( label_position, text );
+      }
+    }
+  };
+
+  //--------------------------------------
+  // 何も無い場所のダブルクリックによるインスタントラベル入力を開始する
+  //--------------------------------------
+  EditorScreen.prototype._startInstantLabelInput = function( position ){
+    // 既存の入力があれば確定させる
+    this._blurInputting();
+
+    // インスタントラベル入力状態にする（生成位置を記録）
+    this.inputting_instant_label = { x: position.x, y: position.y };
+
+    // オブジェクトの文字入力時と同じtextareaをクリック位置に表示する
+    var font_size = 12;
+    var base_pos = this.findObjectByName( "paper" ).screenPosition();
+    this.requestTextarea(
+      "",
+      {
+        x: base_pos.x + ( position.x * this.zoom_rate ),
+        y: base_pos.y + ( position.y * this.zoom_rate ),
+        width:  200 * this.zoom_rate,
+        height: ( font_size + 2 ) * 3 * this.zoom_rate
+      },
+      "rgb(0,0,0)",
+      font_size,
+      font_size + 2,
+      0
+    );
+  };
+
+  //--------------------------------------
+  // インスタントラベルのtextオブジェクトを生成する
+  //--------------------------------------
+  EditorScreen.prototype._createInstantLabelTextObject = function( position, text ){
+    var text_object = this._createInitializedUmlObject( "text" );
+
+    // 入力された文字を初期文字として流し込む
+    text_object.inner_rects["name"].text = text;
+
+    // テキストに合わせてサイズを調整する
+    var text_size = this._getTextSizeByUmlObject( text_object, null );
+    if ( text_size ) {
+      text_object.width  = text_size.width;
+      text_object.height = text_size.height;
+      text_object.inner_rects["name"].width  = text_size.width;
+      text_object.inner_rects["name"].height = text_size.height;
+    }
+
+    // 入力位置へ配置する
+    this._moveUmlObject( text_object, position.x, position.y );
+
+    // 内部矩形の再生成
+    text_object.inner_shapes = this._refreshInnerShape( text_object, text_object.type );
+
+    // オブジェクトを登録・選択状態にする
+    this.save_data.objects[ text_object.id ] = text_object;
+    this.save_data.priorities.push( text_object.id );
+    this._selectUmlObjectByKey( text_object.id );
+
+    // 紙サイズの修正
+    this._refreshPaperSize();
+    // データの記録
+    this.data_manager.setData( this.save_data );
+    // 再描画
+    this.screen_manager.requestDraw( this );
+
+    return text_object;
   };
 
   //--------------------------------------
@@ -4134,6 +4211,11 @@ function EditorScreen(){
             }
           }
         }
+      }
+      // 何も無い場所をダブルクリックした場合は、インスタントラベル入力を開始する
+      else {
+        this._startInstantLabelInput( cursor_position );
+        return true;
       }
     }
     return false;
@@ -5339,6 +5421,9 @@ function EditorScreen(){
     this.inputting_uml_object = null;
     this.inputting_uml_object_shape = null;
 
+    // インスタントラベル入力中の位置（何も無い場所のダブルクリックで開始）
+    this.inputting_instant_label = null;
+
     // オブジェクトサイズの変形トグル
     this.draggable_toggles = [ /*
       { x:0, y:0, type: "top-left", owner: uml_object, inner_shape: object },
@@ -6023,11 +6108,17 @@ toggle_panel
       break;
 
     // テキスト入力モードの解除（ESCキー押下など）。対象オブジェクトの選択は維持する
+    // （インスタントラベル入力中の場合も同様に解除・確定する）
     case "request_blur_textarea":
-      if ( this.inputting_uml_object ) {
+      if ( this.inputting_uml_object || this.inputting_instant_label ) {
         this._blurInputting();
         // 編集内容を記録して再描画（選択状態はそのまま）
         this.data_manager.setData( this.save_data );
+        // クリックによる解除は入力パイプライン（Application.onInput）が relayoutByRequest → drawByRequest の順で
+        // 描画するため、必ずレイアウト更新後に描画される。一方ESC（request_blur_textarea）経由は入力パイプライン外で
+        // 描画予約されるためレイアウト更新を挟まず、レイアウト不整合のまま描画してエラーになり得る。
+        // そこでクリック経路と揃えて、（予約済みの再描画が走る前に）同期的にレイアウトを更新しておく。
+        this.screen_manager.relayout();
         this.screen_manager.requestDraw( this );
       }
       break;
