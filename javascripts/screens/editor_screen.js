@@ -2182,6 +2182,47 @@ function EditorScreen(){
   };
 
   //--------------------------------------
+  // 背景色（塗り）専用のパレット（色名 → RGB各成分[0-255]）
+  //   線色・文字色（_colorPalette）はコントラストの強い色のままとし、背景色に限り、
+  //   黒文字が読みやすいよう明度を上げた（白寄りの）色を用いる。ここに定義の無い色名は _colorPalette を用いる。
+  //   既存の明るい色（pink/light green/sky blue）や green と dark green 同士が同色にならないよう差別化する。
+  //--------------------------------------
+  EditorScreen.prototype._backgroundColorPalette = function(){
+    return {
+      red:        [ 255, 205, 205 ],  // 明るい赤（pink よりさらに淡い）
+      brown:      [ 220, 195, 165 ],  // 明るい茶（ベージュ）
+      green:      [ 205, 240, 200 ],  // 明るい緑（light green より淡い緑寄り）
+      darkgreen:  [ 180, 218, 205 ],  // 明るい深緑（緑よりやや青みのある淡いteal）
+      blue:       [ 210, 225, 255 ],  // 明るい青（sky blue より淡い）
+      darkblue:   [ 188, 192, 232 ],  // 明るい紺（青よりやや暗め・灰みのある淡い青）
+      purple:     [ 230, 205, 245 ]   // 明るい紫（淡いラベンダー）
+    };
+  };
+
+  //--------------------------------------
+  // 背景色（塗り）用の色成分を取得する（背景専用パレット優先、無ければ通常パレット。未定義はnull）
+  //--------------------------------------
+  EditorScreen.prototype._backgroundColorRgbComponents = function( color_name ){
+    return this._backgroundColorPalette()[ color_name ] || this._colorPalette()[ color_name ] || null;
+  };
+
+  //--------------------------------------
+  // 背景色（塗り）用のCanvas用RGB文字列を取得する（transparentや未定義はnullを返す）
+  //--------------------------------------
+  EditorScreen.prototype._backgroundColorNameToRgb = function( color_name ){
+    var rgb = this._backgroundColorRgbComponents( color_name );
+    return rgb ? `rgb(${ rgb[0] },${ rgb[1] },${ rgb[2] })` : null;
+  };
+
+  //--------------------------------------
+  // 背景色（塗り）用のPDF用の色を取得する（transparentや未定義はnullを返す）
+  //--------------------------------------
+  EditorScreen.prototype._backgroundColorNameToPdfColor = function( context, color_name ){
+    var rgb = this._backgroundColorRgbComponents( color_name );
+    return rgb ? getPdfColor( context, rgb[0] / 255, rgb[1] / 255, rgb[2] / 255 ) : null;
+  };
+
+  //--------------------------------------
   // 色選択のoption要素文字列を生成する
   //   include_white:       選択肢に「白」を含める場合はtrue
   //   include_transparent: 選択肢に「透明」を含める場合はtrue
@@ -2274,7 +2315,7 @@ function EditorScreen(){
     var line_color = base_color || this._colorNameToRgb( uml_object.params["lineColor"] ) || "rgb(0,0,0)";
     var text_color = base_color || this._colorNameToRgb( uml_object.params["textColor"] ) || "rgb(0,0,0)";
     var is_transparent_bg = ( "transparent" == uml_object.params["backgroundColor"] );
-    var fill_color = base_bg_color || this._colorNameToRgb( uml_object.params["backgroundColor"] ) || "rgb(255,255,255)";
+    var fill_color = base_bg_color || this._backgroundColorNameToRgb( uml_object.params["backgroundColor"] ) || "rgb(255,255,255)";
 
     // 線幅の設定（このオブジェクトの描画後に既定の1へ戻す）
     setLineWidth( context, Math.max( 1, ( uml_object.params["lineWidth"] || 1 ) * this.zoom_rate ) );
@@ -5086,7 +5127,7 @@ function EditorScreen(){
     var line_color = this._colorNameToPdfColor( context, uml_object.params["lineColor"] ) || base_color;
     var text_color = this._colorNameToPdfColor( context, uml_object.params["textColor"] ) || base_color;
     var is_transparent_bg = ( "transparent" == uml_object.params["backgroundColor"] );
-    var fill_color = this._colorNameToPdfColor( context, uml_object.params["backgroundColor"] ) || base_bg_color;
+    var fill_color = this._backgroundColorNameToPdfColor( context, uml_object.params["backgroundColor"] ) || base_bg_color;
 
     // 線幅の設定
     setPdfLineWidth( context, uml_object.params["lineWidth"] || 1 );
