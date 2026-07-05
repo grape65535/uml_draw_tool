@@ -5726,12 +5726,12 @@ toggle_panel
   <button id='contextmenu_paste'>paste</button><br/>
   <button id='contextmenu_plain_related_paste'>related paste</button><br/>
   <button id='contextmenu_arrow_related_paste'>arrow related paste</button><br/>
-  <div style="width:280;  border_width_bottom:1;  border_color:#909090;  margin:8 0 12 0;"></div>
+  <div style="width:187;  border_width_bottom:1;  border_color:#909090;  margin:8 0 12 0;"></div>
   <button id='contextmenu_most_background'>show on most background</button><br/>
   <button id='contextmenu_background'>show on background</button><br/>
   <button id='contextmenu_foreground'>show on foreground</button><br/>
   <button id='contextmenu_most_foreground'>show on most foreground</button><br/>
-  <div style="width:280;  border_width_bottom:1;  border_color:#909090;  margin:8 0 12 0;"></div>
+  <div style="width:187;  border_width_bottom:1;  border_color:#909090;  margin:8 0 12 0;"></div>
   <button id='contextmenu_group'>make group</button><br/>
   <button id='contextmenu_release_group'>release group</button><br/>
 </toggle_panel>
