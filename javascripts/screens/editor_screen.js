@@ -3721,6 +3721,65 @@ function EditorScreen(){
   }
 
   //--------------------------------------
+  // 右クリックメニューを非表示にする
+  //--------------------------------------
+  EditorScreen.prototype._hideContextMenu = function(){
+    var panel = this.findObjectByName( "context_menu_panel" );
+    if ( panel && panel.isShow() ) {
+      panel.hide();
+      this.screen_manager.requestDraw( this );
+      return true;
+    }
+    return false;
+  };
+
+  //--------------------------------------
+  // ESCキーで右クリックメニューを非表示にする
+  //--------------------------------------
+  EditorScreen.prototype._hideContextMenuByShortCutKey = function( statuses ){
+    if ( statuses.isDownKey( KEYCODE_ESC ) ) {
+      return this._hideContextMenu();
+    }
+    return false;
+  };
+
+  //--------------------------------------
+  // 右クリックによる右クリックメニューの表示
+  //   オブジェクト／グループ上での右クリック時のみメニューを表示する（それ以外は何もしない）。
+  //   カーソル位置のオブジェクトが未選択なら、左クリック同様に選択状態にしてから表示する。
+  //--------------------------------------
+  EditorScreen.prototype._showContextMenuByRightClick = function( statuses ){
+    // ドラッグではなく右クリック（押して離す）？
+    if ( statuses.isUpKey( KEYCODE_MOUSE_RIGHT ) && ! statuses.isDrop( KEYCODE_MOUSE_RIGHT ) ) {
+      // クリック位置を紙の左上からの相対位置に変換
+      var cursor_position = this._getPaperOffsetPosition( statuses.getCursorPosition() );
+
+      // 座標位置のUMLオブジェクトを取得
+      var uml_object_key = this._findHoverUmlObjectKeyByPoint( cursor_position.x, cursor_position.y );
+
+      // オブジェクト／グループ以外（何も無い場所）では何もしない
+      if ( ! uml_object_key ) return true;
+
+      // カーソル位置のオブジェクトが未選択ならば、左クリック同様に選択状態にする
+      if ( ! this._isIncludeSelectedUmlObjectByKey( uml_object_key ) ) {
+        this._selectUmlObjectByKey( uml_object_key );
+      }
+
+      // 右クリックメニューをカーソル位置に表示する（canvasへフレームワークで描画）
+      var screen_cursor_position = statuses.getCursorPosition();
+      var panel = this.findObjectByName( "context_menu_panel" );
+      panel.setDynamicStyleAttr( "left", screen_cursor_position.x );
+      panel.setDynamicStyleAttr( "top",  screen_cursor_position.y );
+      panel.show();
+
+      // 再描画
+      this.screen_manager.requestDraw( this );
+      return true;
+    }
+    return false;
+  };
+
+  //--------------------------------------
   // クリックによるオブジェクト選択
   //--------------------------------------
   EditorScreen.prototype._selectUmlObjectByClick = function( statuses ){
@@ -5660,6 +5719,22 @@ toggle_panel
   <button id='filemenu_view_150'>zoom 150%</button><br/>
   <button id='filemenu_view_200'>zoom 200%</button><br/>
 </toggle_panel>
+<!-- 右クリックメニュー -->
+<toggle_panel id='context_menu_panel'>
+  <button id='contextmenu_cut'>cut</button><br/>
+  <button id='contextmenu_copy'>copy</button><br/>
+  <button id='contextmenu_paste'>paste</button><br/>
+  <button id='contextmenu_plain_related_paste'>related paste</button><br/>
+  <button id='contextmenu_arrow_related_paste'>arrow related paste</button><br/>
+  <div style="width:280;  border_width_bottom:1;  border_color:#909090;  margin:8 0 12 0;"></div>
+  <button id='contextmenu_most_background'>show on most background</button><br/>
+  <button id='contextmenu_background'>show on background</button><br/>
+  <button id='contextmenu_foreground'>show on foreground</button><br/>
+  <button id='contextmenu_most_foreground'>show on most foreground</button><br/>
+  <div style="width:280;  border_width_bottom:1;  border_color:#909090;  margin:8 0 12 0;"></div>
+  <button id='contextmenu_group'>make group</button><br/>
+  <button id='contextmenu_release_group'>release group</button><br/>
+</toggle_panel>
 `
     );
 
@@ -5804,6 +5879,9 @@ toggle_panel
     // クリックによる入力状態の解除
     this._blurInputtingByClick( statuses );
 
+    // ドラッグ操作を開始したら右クリックメニューを閉じる
+    if ( statuses.isDrag( KEYCODE_CURSOR ) ) this._hideContextMenu();
+
     // 以下、オブジェクトの入力よりも優先して処理させたいドラッグ関連の処理（オブジェクトを先にするとスクロールが優先してしまうため）
     // カーソルツールでもSHIFT押下中のドラッグは範囲選択（交差）として扱う
     if ( this.select_tool_name == "tool_button_cursor" && ! statuses.isPressKey( KEYCODE_SHIFT ) ) {
@@ -5833,6 +5911,9 @@ toggle_panel
     if ( ! Object.getPrototypeOf(Object.getPrototypeOf(this)).onChangeInputStatuses.call( this, statuses ) ) {
 
       // 以下はキー入力に関する処理 ----------------
+
+      // ESCキーで右クリックメニューを閉じる
+      if ( this._hideContextMenuByShortCutKey( statuses ) ) return true;
 
       // 全選択のショートカットキー操作
       if ( this._allSelectByShortCutKey( statuses ) ) return true;
@@ -5865,6 +5946,9 @@ toggle_panel
 
       // パラメータ入力エリア上にカーソルがある時は何もしない
       if ( this.findObjectByName( "object_params" ).isHover( statuses ) ) return false;
+
+      // 右クリックによる右クリックメニューの表示（右クリックは以降の通常処理を行わない）
+      if ( this._showContextMenuByRightClick( statuses ) ) return true;
 
       // ダブルクリックによるオブジェクトの編集
       if ( this._editSelectedUmlObjectsByDoubleClick( statuses ) ) return true;
@@ -5956,8 +6040,9 @@ toggle_panel
           this._redo();
           break;
 
-        // カット
+        // カット（ファイルメニュー / 右クリックメニュー共通）
         case "filemenu_edit_cut":
+        case "contextmenu_cut":
           this._sendSelectedUmlObjectToClipboard();
           this._removeSelectedUmlObject();
 
@@ -5971,51 +6056,61 @@ toggle_panel
 
         // コピー
         case "filemenu_edit_copy":
+        case "contextmenu_copy":
           this._sendSelectedUmlObjectToClipboard();
           break;
 
         // ペースト
         case "filemenu_edit_paste":
+        case "contextmenu_paste":
           this._pasteUmlObjectsByClipBoard();
           break;
 
         // 関係線をつけてペースト
         case "filemenu_edit_plain_related_paste":
+        case "contextmenu_plain_related_paste":
           this._relatedPasteAsType( 2 );
           break;
 
         // 関係線をつけてペースト（矢印）
         case "filemenu_edit_arrow_related_paste":
+        case "contextmenu_arrow_related_paste":
           this._relatedPasteAsType( 2, "arrow" );
           break;
 
         // 最背面に表示
         case "filemenu_edit_most_background":
+        case "contextmenu_most_background":
           this._moveLowestPriorityBySelectedUmlObject();
           break;
 
         // 背面に表示
         case "filemenu_edit_background":
+        case "contextmenu_background":
           this._moveLowerPriorityBySelectedUmlObject();
           break;
 
         // 前面に表示
         case "filemenu_edit_foreground":
+        case "contextmenu_foreground":
           this._moveHigherPriorityBySelectedUmlObject();
           break;
 
         // 最前面に表示
         case "filemenu_edit_most_foreground":
+        case "contextmenu_most_foreground":
           this._moveHighestPriorityBySelectedUmlObject();
           break;
 
         // グルーピング
         case "filemenu_edit_group":
+        case "contextmenu_group":
           this._groupSelectedUmlObjects();
           break;
 
         // グルーピング解除
         case "filemenu_edit_release_group":
+        case "contextmenu_release_group":
           this._ungroupSelectedUmlObjects();
           break;
 
