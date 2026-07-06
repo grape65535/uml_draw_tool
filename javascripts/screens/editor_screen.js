@@ -4416,31 +4416,35 @@ function EditorScreen(){
 
       // アスペクト比の維持
       if ( drag_starting_data.toggle.owner.is_keep_aspect_rate ) {
-        var move_amount_x = cursor_position.x - start_cursor_position.x;
-        var move_amount_y = cursor_position.y - start_cursor_position.y;
+        // 基準となる開始位置が生座標（グリッド未吸着）のままだと、移動量やアスペクト比から算出するY座標が
+        // 10px格子からずれ、10px未満のサイズ変更になってしまう。基準もグリッド（cursor_positionと同じ吸着）へ揃える。
+        var aspect_start_x = Math.floor( start_cursor_position.x / this.grid_size ) * this.grid_size;
+        var aspect_start_y = Math.floor( start_cursor_position.y / this.grid_size ) * this.grid_size;
+        var move_amount_x = cursor_position.x - aspect_start_x;
+        var move_amount_y = cursor_position.y - aspect_start_y;
         switch ( drag_starting_data.toggle.type ) {
         case "top-left":
           if ( -move_amount_x < -move_amount_y ) move_amount_x = move_amount_y;
-          cursor_position.x = start_cursor_position.x + move_amount_x;
-          cursor_position.y = start_cursor_position.y + ( move_amount_x * drag_starting_data.toggle.owner.aspect_rate );
+          cursor_position.x = aspect_start_x + move_amount_x;
+          cursor_position.y = aspect_start_y + ( move_amount_x * drag_starting_data.toggle.owner.aspect_rate );
           break;
 
         case "top-right":
           if ( move_amount_x < -move_amount_y ) move_amount_x = -move_amount_y;
-          cursor_position.x = start_cursor_position.x + move_amount_x;
-          cursor_position.y = start_cursor_position.y - ( move_amount_x * drag_starting_data.toggle.owner.aspect_rate );
+          cursor_position.x = aspect_start_x + move_amount_x;
+          cursor_position.y = aspect_start_y - ( move_amount_x * drag_starting_data.toggle.owner.aspect_rate );
           break;
 
         case "bottom-left":
           if ( -move_amount_x < move_amount_y ) move_amount_x = -move_amount_y;
-          cursor_position.x = start_cursor_position.x + move_amount_x;
-          cursor_position.y = start_cursor_position.y - ( move_amount_x * drag_starting_data.toggle.owner.aspect_rate );
+          cursor_position.x = aspect_start_x + move_amount_x;
+          cursor_position.y = aspect_start_y - ( move_amount_x * drag_starting_data.toggle.owner.aspect_rate );
           break;
 
         case "bottom-right":
           if ( move_amount_x < move_amount_y ) move_amount_x = move_amount_y;
-          cursor_position.x = start_cursor_position.x + move_amount_x;
-          cursor_position.y = start_cursor_position.y + ( move_amount_x * drag_starting_data.toggle.owner.aspect_rate );
+          cursor_position.x = aspect_start_x + move_amount_x;
+          cursor_position.y = aspect_start_y + ( move_amount_x * drag_starting_data.toggle.owner.aspect_rate );
           break;
         }
       }
