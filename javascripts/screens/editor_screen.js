@@ -1717,6 +1717,27 @@ function EditorScreen(){
   };
 
   //--------------------------------------
+  // 関係線の接続時の辺沿いオフセットを吸着させる
+  //   基本は10px単位。ただし辺の中央（edge_length/2）付近（±grid/2=±5px）は中央へ吸着させ、
+  //   その範囲内に10px単位の吸着点がある場合は、その点の±1pxに限り10px点を優先する。
+  //   （branchの菱形やstart/end等の円形で、辺中央に接続すると実線と接続点の隙間が無くなる）
+  //--------------------------------------
+  EditorScreen.prototype._snapConnectionOffset = function( raw_offset, edge_length ){
+    var grid = this.grid_size;
+    var center = edge_length / 2;
+
+    // 中央から±(grid/2)以内は中央へ吸着（ただし10px点の±1pxはそちらを優先）
+    if ( Math.abs( raw_offset - center ) <= ( grid / 2 ) ) {
+      var nearest_grid = Math.round( raw_offset / grid ) * grid;
+      if ( Math.abs( raw_offset - nearest_grid ) <= 1 ) return nearest_grid;
+      return center;
+    }
+
+    // それ以外は従来通り10px単位（切り捨て）
+    return Math.floor( raw_offset / grid ) * grid;
+  };
+
+  //--------------------------------------
   // UMLオブジェクトの内部区切り位置の変更
   //--------------------------------------
   EditorScreen.prototype._moveInnerLine = function( uml_object, inner_shape, type, x, y, is_not_connection ){
@@ -1741,6 +1762,18 @@ function EditorScreen(){
         var contact = this._findNearUmlObjectByPoint( uml_object, x, y );
         // 接続先がある時
         if ( contact ) {
+          // 接続時の辺沿いオフセットを、10px単位＋辺中央への吸着ルールで確定する
+          var edge_length = isIncludeArray( [ "top", "bottom" ], contact.base_type ) ? contact.owner.width : contact.owner.height;
+          contact.offset = Math.max( 0, Math.min( edge_length, this._snapConnectionOffset( contact.offset, edge_length ) ) );
+
+          // 確定したoffsetから接続点座標を再計算する
+          switch ( contact.base_type ) {
+          case "top":    contact.contact = { x: contact.owner.x + contact.offset,      y: contact.owner.y };                        break;
+          case "bottom": contact.contact = { x: contact.owner.x + contact.offset,      y: contact.owner.y + contact.owner.height }; break;
+          case "left":   contact.contact = { x: contact.owner.x,                       y: contact.owner.y + contact.offset };       break;
+          case "right":  contact.contact = { x: contact.owner.x + contact.owner.width, y: contact.owner.y + contact.offset };       break;
+          }
+
           // カーソル位置を接続位置だったことにする
           x = contact.contact.x;
           y = contact.contact.y;
@@ -1750,6 +1783,9 @@ function EditorScreen(){
         }
         else {
           inner_shape.relation = null;
+          // 接続しない始点・終点は通常のグリッド（10px）に吸着する（CTRL時は1px）
+          x = Math.floor( x / this.grid_size ) * this.grid_size;
+          y = Math.floor( y / this.grid_size ) * this.grid_size;
         }
       }
 
@@ -4368,10 +4404,14 @@ function EditorScreen(){
       if ( statuses.isPressKey( KEYCODE_CTRL ) || statuses.isPressKey( KEYCODE_COMMAND ) ) {
         is_not_connection = true; // リレーションオブジェクトの場合に、コントロールキー押下時は他オブジュエクトとの接続をしない
       }
-      // 通常は10ピセル単位で移動
+      // 通常は10ピクセル単位で移動。
+      // ただし関係線（relation）の始点・終点は、接続時に「辺の中央へ吸着」させる判定のため生座標のまま渡す
+      // （接続有無に応じて _moveInnerLine 内で確定。接続時は10px＋辺中央、非接続時は10px、中継点・リサイズは10px）
       else {
-        cursor_position.x = Math.floor( cursor_position.x / this.grid_size ) * this.grid_size;
-        cursor_position.y = Math.floor( cursor_position.y / this.grid_size ) * this.grid_size;
+        if ( ! isIncludeArray( [ "inner-line-start", "inner-line-end" ], drag_starting_data.toggle.type ) ) {
+          cursor_position.x = Math.floor( cursor_position.x / this.grid_size ) * this.grid_size;
+          cursor_position.y = Math.floor( cursor_position.y / this.grid_size ) * this.grid_size;
+        }
       }
 
       // アスペクト比の維持
