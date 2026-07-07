@@ -979,7 +979,7 @@ function EditorScreen(){
 
     // 入力フォームからパラメータを取得する
     var params = {};
-    var keys = [ "fontSize", "nameAlign", "textAlign", "wordBreak", "pathStyle", "lineStyle", "lineStartStyle", "lineEndStyle", "lineColor", "backgroundColor", "textColor", "lineWidth" ];
+    var keys = [ "fontSize", "nameAlign", "textAlign", "verticalAlign", "wordBreak", "pathStyle", "lineStyle", "lineStartStyle", "lineEndStyle", "lineColor", "backgroundColor", "textColor", "lineWidth" ];
     for ( var i=0; i<keys.length; i++ ) {
       var object = this.findObjectByName( `input_${ keys[i] }` );
       if ( object ) {
@@ -1042,7 +1042,7 @@ function EditorScreen(){
     }
 
     // UI用のHTML生成（表示順序を固定する。paramsに存在するキーのみ描画する）
-    var ordered_keys = [ "fontSize", "nameAlign", "textAlign", "wordBreak", "textColor", "pathStyle", "lineStyle", "lineStartStyle", "lineEndStyle", "lineWidth", "lineColor", "backgroundColor" ];
+    var ordered_keys = [ "fontSize", "nameAlign", "textAlign", "verticalAlign", "wordBreak", "textColor", "pathStyle", "lineStyle", "lineStartStyle", "lineEndStyle", "lineWidth", "lineColor", "backgroundColor" ];
     var html_string = "";
     for ( var ki=0; ki<ordered_keys.length; ki++ ) {
       var key = ordered_keys[ ki ];
@@ -1059,6 +1059,15 @@ function EditorScreen(){
         options += `<option value='left'   ${  "left"  == params[ key ] ? "selected" : "" }>left</option>`;
         options += `<option value='center' ${ "center" == params[ key ] ? "selected" : "" }>center</option>`;
         options += `<option value='right'  ${ "right"  == params[ key ] ? "selected" : "" }>right</option>`;
+        html_string += `<div>${ key }<br/><select id='input_${ key }'>${ options }</select></div>`;
+        break;
+
+      case "verticalAlign":
+        var options = "";
+        if ( ! params[ key ] ) options += "<option value=''></option>";
+        options += `<option value='top'    ${ "top"    == params[ key ] ? "selected" : "" }>top</option>`;
+        options += `<option value='center' ${ "center" == params[ key ] ? "selected" : "" }>center</option>`;
+        options += `<option value='bottom' ${ "bottom" == params[ key ] ? "selected" : "" }>bottom</option>`;
         html_string += `<div>${ key }<br/><select id='input_${ key }'>${ options }</select></div>`;
         break;
 
@@ -2448,6 +2457,28 @@ function EditorScreen(){
           if ( uml_object.params["textAlign"]                   ) align = uml_object.params["textAlign"];
           if ( uml_object.params["nameAlign"] && key == "name" ) align = uml_object.params["nameAlign"];
 
+          // verticalAlignによる配置。横書きは文字表示領域の内側縦幅に対しY方向へ配置する。
+          // ただし縦書き（vertical_partition）は、nameAlignが横→縦になっているのと同様の特殊事例として、
+          // verticalAlignを「横方向」のアライメントとして扱い、内側横幅に対しX方向へ配置する（top→左/center→中央/bottom→右）。
+          if ( "top" != ( uml_object.params["verticalAlign"] || "top" ) ) {
+            var vertical_align = uml_object.params["verticalAlign"];
+            var content_size = text_rows.length * ( font_size + 2 );
+            if ( uml_object.inner_rects[ key ].vertical_text ) {
+              var area_width = uml_object.inner_rects[ key ].width - 6;
+              var horizontal_offset = 0;
+              if ( "center" == vertical_align ) horizontal_offset = Math.round( ( area_width - content_size ) / 2 );
+              else if ( "bottom" == vertical_align ) horizontal_offset = ( area_width - content_size );
+              x += _zoom( horizontal_offset );
+            }
+            else {
+              var area_height = uml_object.inner_rects[ key ].height - 6;
+              var vertical_offset = 0;
+              if ( "center" == vertical_align ) vertical_offset = Math.round( ( area_height - content_size ) / 2 );
+              else if ( "bottom" == vertical_align ) vertical_offset = ( area_height - content_size );
+              y += _zoom( vertical_offset );
+            }
+          }
+
           for ( var i=0; i<text_rows.length; i++ ) {
             var text_width = getTextWidth( text_rows[i], font_size );
             var align_offset = 0;
@@ -3054,6 +3085,7 @@ function EditorScreen(){
       };
       uml_object.params["fontSize"] = 12;
       uml_object.params["textAlign"] = "center";
+      uml_object.params["verticalAlign"] = "top";
       uml_object.params["wordBreak"] = "normal";
       break;
 
@@ -3104,6 +3136,7 @@ function EditorScreen(){
       };
       uml_object.params["fontSize"] = 12;
       uml_object.params["nameAlign"] = "center";
+      uml_object.params["verticalAlign"] = "top";
       uml_object.params["wordBreak"] = "normal";
       break;
 
@@ -3175,6 +3208,7 @@ function EditorScreen(){
       };
       uml_object.params["fontSize"] = 12;
       uml_object.params["nameAlign"] = "center";
+      uml_object.params["verticalAlign"] = "top";
       uml_object.params["wordBreak"] = "normal";
       break;
   
@@ -3204,6 +3238,7 @@ function EditorScreen(){
       };
       uml_object.params["fontSize"] = 12;
       uml_object.params["textAlign"] = "left";
+      uml_object.params["verticalAlign"] = "top";
       uml_object.params["wordBreak"] = "break";
       break;
 
@@ -3250,6 +3285,7 @@ function EditorScreen(){
       };
       uml_object.params["fontSize"] = 12;
       uml_object.params["textAlign"] = "left";
+      uml_object.params["verticalAlign"] = "top";
       uml_object.params["wordBreak"] = "break";
       break;
 
@@ -3300,6 +3336,7 @@ function EditorScreen(){
       };
       uml_object.params["fontSize"] = 12;
       uml_object.params["nameAlign"] = "left";
+      uml_object.params["verticalAlign"] = "top";
       uml_object.params["wordBreak"] = "normal";
       break;
 
@@ -3432,6 +3469,7 @@ function EditorScreen(){
       };
       uml_object.params["fontSize"] = 12;
       uml_object.params["nameAlign"] = "left";
+      uml_object.params["verticalAlign"] = "top";
       uml_object.params["wordBreak"] = "normal";
       break;
 
@@ -3483,6 +3521,7 @@ function EditorScreen(){
       };
       uml_object.params["fontSize"] = 12;
       uml_object.params["nameAlign"] = "left";
+      uml_object.params["verticalAlign"] = "top";
       uml_object.params["wordBreak"] = "normal";
       break;
 
@@ -5268,6 +5307,27 @@ function EditorScreen(){
           if ( uml_object.params["textAlign"]                   ) align = uml_object.params["textAlign"];
           if ( uml_object.params["nameAlign"] && key == "name" ) align = uml_object.params["nameAlign"];
 
+          // verticalAlignによる配置（Canvas描画と同一ロジック）。
+          // 横書きはY方向、縦書き（vertical_partition）はverticalAlignを横方向として扱いX方向へ配置する。
+          if ( "top" != ( uml_object.params["verticalAlign"] || "top" ) ) {
+            var vertical_align = uml_object.params["verticalAlign"];
+            var content_size = text_rows.length * ( font_size + 2 );
+            if ( uml_object.inner_rects[ key ].vertical_text ) {
+              var area_width = uml_object.inner_rects[ key ].width - 6;
+              var horizontal_offset = 0;
+              if ( "center" == vertical_align ) horizontal_offset = Math.round( ( area_width - content_size ) / 2 );
+              else if ( "bottom" == vertical_align ) horizontal_offset = ( area_width - content_size );
+              x += horizontal_offset;
+            }
+            else {
+              var area_height = uml_object.inner_rects[ key ].height - 6;
+              var vertical_offset = 0;
+              if ( "center" == vertical_align ) vertical_offset = Math.round( ( area_height - content_size ) / 2 );
+              else if ( "bottom" == vertical_align ) vertical_offset = ( area_height - content_size );
+              y += vertical_offset;
+            }
+          }
+
           for ( var i=0; i<text_rows.length; i++ ) {
             var text_width = getTextWidth( text_rows[i], font_size );
             var align_offset = 0;
@@ -5485,6 +5545,17 @@ function EditorScreen(){
       } );
     }
 
+    if ( 1.7 > data.version ) {
+      // textAlignまたはnameAlignを持つ（設定済みの）オブジェクトにverticalAlign属性を追加する（既定はtop＝従来表示）
+      this._seekSaveData( data.objects, function( uml_object ){
+        if ( uml_object.params
+          && ( "undefined" != typeof uml_object.params["textAlign"] || "undefined" != typeof uml_object.params["nameAlign"] )
+          && "undefined" == typeof uml_object.params["verticalAlign"] ) {
+          uml_object.params["verticalAlign"] = "top";
+        }
+      } );
+    }
+
     data.version = this.current_version;
     return data;
   };
@@ -5631,7 +5702,7 @@ function EditorScreen(){
 
     // アプリケーション名
     this.application_name = "uml_draw_tool";
-    this.current_version = 1.6;
+    this.current_version = 1.7;
 
     // 画像管理を生成
     this.image_manager = ( new ImageManager() ).initialize(this);
@@ -6060,6 +6131,7 @@ toggle_panel
         case "input_fontSize":
         case "input_nameAlign":
         case "input_textAlign":
+        case "input_verticalAlign":
         case "input_wordBreak":
         case "input_pathStyle":
         case "input_lineStyle":
