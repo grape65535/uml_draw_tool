@@ -371,7 +371,32 @@ function drawPdfCircle( context, x, y, radius, color, is_fill_rect ){
       opacity: ( is_fill_rect ? context.params.opacity : 0 ),
       borderOpacity: context.params.opacity,
     });
-  
+
+    resolve();
+  } );
+}
+
+//--------------------------------------
+// 楕円描画（radius_x == radius_y なら真円）
+//--------------------------------------
+function drawPdfEllipse( context, x, y, radius_x, radius_y, color, is_fill_rect ){
+  // PDF描画用関数の中には非同期な処理が存在するため、全て非同期化することで描画順序を関数呼び出し順となる様にする
+  _wrapAsyncPdfFunction( context, function( resolve, reject ){
+    var page = _getPdfPage( context );
+    var pos = _getPdfPosition( context, { x:x, y:y } );
+
+    page.drawEllipse({
+      x: pos.x,
+      y: pos.y,
+      xScale: Math.abs( radius_x ),
+      yScale: Math.abs( radius_y ),
+      borderWidth: context.params.line.border_width,
+      borderColor: color,
+      color: color,
+      opacity: ( is_fill_rect ? context.params.opacity : 0 ),
+      borderOpacity: context.params.opacity,
+    });
+
     resolve();
   } );
 }
