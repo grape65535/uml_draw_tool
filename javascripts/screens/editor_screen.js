@@ -327,10 +327,15 @@ function EditorScreen(){
           return `${uml_object.id}.inner_shapes.${key}`;
         }
         break;
+      case "ellipse":
+        if ( isCollisionPointAndEllipse( x, y, uml_object.inner_shapes[key].x, uml_object.inner_shapes[key].y, uml_object.inner_shapes[key].radius_x, uml_object.inner_shapes[key].radius_y ) ) {
+          return `${uml_object.id}.inner_shapes.${key}`;
+        }
+        break;
       case "line":
         if ( isCollisionPointAndLine( x, y, uml_object.inner_shapes[key].start.x, uml_object.inner_shapes[key].start.y, uml_object.inner_shapes[key].end.x, uml_object.inner_shapes[key].end.y ) ) {
           return `${uml_object.id}.inner_shapes.${key}`;
-        }  
+        }
         break;
       case "polygon":
         if ( isCollisionPointAndPolygon( x, y, uml_object.inner_shapes[key].polygon ) ) {
@@ -378,6 +383,9 @@ function EditorScreen(){
         break;
       case "circle":
         if ( isCollisionRectAndCircle( x, y, width, height, uml_object.inner_shapes[key].x, uml_object.inner_shapes[key].y, uml_object.inner_shapes[key].radius ) ) return true;
+        break;
+      case "ellipse":
+        if ( isCollisionRectAndEllipse( x, y, width, height, uml_object.inner_shapes[key].x, uml_object.inner_shapes[key].y, uml_object.inner_shapes[key].radius_x, uml_object.inner_shapes[key].radius_y ) ) return true;
         break;
       case "line":
         if ( isCollisionLineAndRect( uml_object.inner_shapes[key].start.x, uml_object.inner_shapes[key].start.y, uml_object.inner_shapes[key].end.x, uml_object.inner_shapes[key].end.y, x, y, width, height ) ) return true;
@@ -1288,6 +1296,18 @@ function EditorScreen(){
         uml_object.inner_shapes[key].y += move_amount_y;
         uml_object.inner_shapes[key].radius += move_amount_width/2;
         if ( 0 > uml_object.inner_shapes[key].radius ) uml_object.inner_shapes[key].radius = 0;
+
+        uml_object.inner_shapes[key].x = uml_object.x + ( uml_object.inner_shapes[key].x - uml_object.x ) * width_scale_rate;
+        uml_object.inner_shapes[key].y = uml_object.y + ( uml_object.inner_shapes[key].y - uml_object.y ) * height_scale_rate;
+        break;
+
+      case "ellipse":
+        uml_object.inner_shapes[key].x += move_amount_x;
+        uml_object.inner_shapes[key].y += move_amount_y;
+        uml_object.inner_shapes[key].radius_x += move_amount_width/2;
+        uml_object.inner_shapes[key].radius_y += move_amount_height/2;
+        if ( 0 > uml_object.inner_shapes[key].radius_x ) uml_object.inner_shapes[key].radius_x = 0;
+        if ( 0 > uml_object.inner_shapes[key].radius_y ) uml_object.inner_shapes[key].radius_y = 0;
 
         uml_object.inner_shapes[key].x = uml_object.x + ( uml_object.inner_shapes[key].x - uml_object.x ) * width_scale_rate;
         uml_object.inner_shapes[key].y = uml_object.y + ( uml_object.inner_shapes[key].y - uml_object.y ) * height_scale_rate;
@@ -2423,6 +2443,14 @@ function EditorScreen(){
         drawCircle( context, base_x + _zoom( uml_object.inner_shapes[key].x ), base_y + _zoom( uml_object.inner_shapes[key].y ), _zoom( uml_object.inner_shapes[key].radius ), line_color, false );
         break;
 
+      case "ellipse":
+        if ( uml_object.inner_shapes[key].fill ) {
+          if ( uml_object.inner_shapes[key].fill_border_color ) drawEllipse( context, base_x + _zoom( uml_object.inner_shapes[key].x ), base_y + _zoom( uml_object.inner_shapes[key].y ), _zoom( uml_object.inner_shapes[key].radius_x ), _zoom( uml_object.inner_shapes[key].radius_y ), line_color, true );
+          else if ( ! is_transparent_bg )                       drawEllipse( context, base_x + _zoom( uml_object.inner_shapes[key].x ), base_y + _zoom( uml_object.inner_shapes[key].y ), _zoom( uml_object.inner_shapes[key].radius_x ), _zoom( uml_object.inner_shapes[key].radius_y ), fill_color, true );
+        }
+        drawEllipse( context, base_x + _zoom( uml_object.inner_shapes[key].x ), base_y + _zoom( uml_object.inner_shapes[key].y ), _zoom( uml_object.inner_shapes[key].radius_x ), _zoom( uml_object.inner_shapes[key].radius_y ), line_color, false );
+        break;
+
       case "polygon":
         var polygon = [];
         for ( var i=0; i<uml_object.inner_shapes[key].polygon.length; i++ ) polygon.push( { x: base_x + _zoom( uml_object.inner_shapes[key].polygon[i].x ), y: base_y + _zoom( uml_object.inner_shapes[key].polygon[i].y ) } );
@@ -2776,7 +2804,21 @@ function EditorScreen(){
         ],
         fill: false,
         fill_border_color: false,
-      };      
+      };
+      break;
+
+    case "ellipse":
+      // 楕円（サイズが正方形なら radius_x == radius_y となり真円で描画される）
+      shapes["outer"] = {
+        id: "outer",
+        type: "ellipse",
+        x: uml_object.x + uml_object.width / 2,
+        y: uml_object.y + uml_object.height / 2,
+        radius_x: uml_object.width / 2,
+        radius_y: uml_object.height / 2,
+        fill: true,
+        fill_border_color: false,
+      };
       break;
 
     case "start":
@@ -3286,6 +3328,40 @@ function EditorScreen(){
       uml_object.params["fontSize"] = 12;
       uml_object.params["textAlign"] = "left";
       uml_object.params["verticalAlign"] = "top";
+      uml_object.params["wordBreak"] = "break";
+      break;
+
+    case "ellipse":
+      // ユースケース図などで使う、楕円の中にテキストがある図形。パラメータ・トリム仕様はcommentと同一。
+      // ただしtextAlign/verticalAlignの初期値はcenter。図形はサイズが正方形なら真円で描画される。
+      uml_object.width  = 100;
+      uml_object.height = 50;
+      uml_object.min_width = 30;
+      uml_object.min_height = 30;
+      uml_object.inner_rects[ "name" ] = {
+        id: "name",
+        type: "rect",
+        x: 0,
+        y: 0,
+        width: 100,
+        height: 50,
+        min_width: 10,
+        min_height: 10,
+        has_text: true,
+        text: "text",
+        top_rect_id: null,
+        bottom_rect_id: null,
+        left_rect_id: null,
+        right_rect_id: null,
+        is_bind_object_width: true,
+        is_bind_object_height: true,
+        is_border_visible: false,
+        fill: false,
+        ignore_select: false,
+      };
+      uml_object.params["fontSize"] = 12;
+      uml_object.params["textAlign"] = "center";
+      uml_object.params["verticalAlign"] = "center";
       uml_object.params["wordBreak"] = "break";
       break;
 
@@ -5272,6 +5348,14 @@ function EditorScreen(){
         drawPdfCircle( context, base_x + uml_object.inner_shapes[key].x, base_y + uml_object.inner_shapes[key].y, uml_object.inner_shapes[key].radius, line_color, false );
         break;
 
+      case "ellipse":
+        if ( uml_object.inner_shapes[key].fill ) {
+          if ( uml_object.inner_shapes[key].fill_border_color ) drawPdfEllipse( context, base_x + uml_object.inner_shapes[key].x, base_y + uml_object.inner_shapes[key].y, uml_object.inner_shapes[key].radius_x, uml_object.inner_shapes[key].radius_y, line_color, true );
+          else if ( ! is_transparent_bg )                       drawPdfEllipse( context, base_x + uml_object.inner_shapes[key].x, base_y + uml_object.inner_shapes[key].y, uml_object.inner_shapes[key].radius_x, uml_object.inner_shapes[key].radius_y, fill_color, true );
+        }
+        drawPdfEllipse( context, base_x + uml_object.inner_shapes[key].x, base_y + uml_object.inner_shapes[key].y, uml_object.inner_shapes[key].radius_x, uml_object.inner_shapes[key].radius_y, line_color, false );
+        break;
+
       case "polygon":
         var polygon = [];
         for ( var i=0; i<uml_object.inner_shapes[key].polygon.length; i++ ) polygon.push( { x: base_x + uml_object.inner_shapes[key].polygon[i].x, y: base_y + uml_object.inner_shapes[key].polygon[i].y } );
@@ -5833,6 +5917,7 @@ toggle_panel
       <button id='tool_button_horizontal_line'      class='tool_button'><img class='tool_button_icon' /></button>
       <button id='tool_button_box'                  class='tool_button'><img class='tool_button_icon' /></button>
       <button id='tool_button_close'                class='tool_button'><img class='tool_button_icon' /></button>
+      <button id='tool_button_ellipse'              class='tool_button'><img class='tool_button_icon' /></button>
     </div>
     <!-- パラメータ入力欄 -->
     <div id='object_params'></div>
@@ -6346,6 +6431,7 @@ toggle_panel
         case "tool_button_horizontal_partition":
         case "tool_button_vertical_partition":
         case "tool_button_close":
+        case "tool_button_ellipse":
 
           // UIオブジェクトを生成する
           this._createUmlObject( object.name );
@@ -6407,6 +6493,7 @@ toggle_panel
       "icon26",
       "icon27",
       "icon28",
+      "icon29",
     ]
     for ( var i=0; i<pictures.length; i++ ) {
       pictures[i].setSrc( index_to_icon_handle_map[i], this.image_manager );

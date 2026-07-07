@@ -125,6 +125,16 @@ function isCollisionPointAndCircle( px, py, cx, cy, radius ){
 }
 
 //--------------------------------------
+// 点と楕円が衝突しているか？（radius_x == radius_y なら真円）
+//--------------------------------------
+function isCollisionPointAndEllipse( px, py, cx, cy, radius_x, radius_y ){
+  if ( 0 == radius_x || 0 == radius_y ) return false;
+  var dx = ( px - cx ) / radius_x;
+  var dy = ( py - cy ) / radius_y;
+  return ( dx * dx + dy * dy ) <= 1;
+}
+
+//--------------------------------------
 // 点が多角形内に存在するか判定する
 //   polygon : [ {x0,y:0}, {x0,y:0}, ... ]
 //--------------------------------------
@@ -276,6 +286,25 @@ function isCollisionRectAndCircle( rx, ry, width, height, cx, cy, radius ){
     return true;
   }
   return false;
+}
+
+//--------------------------------------
+// 矩形と楕円が衝突しているか？（範囲選択用の近似。外接矩形の重なり＋中心/角の楕円内判定）
+//--------------------------------------
+function isCollisionRectAndEllipse( rx, ry, width, height, cx, cy, radius_x, radius_y ){
+  // 楕円の中心点が矩形内？
+  if ( isCollisionPointAndRect( cx, cy, rx, ry, width, height ) ) return true;
+  // 矩形の4隅のいずれかが楕円内？
+  if (
+     ( isCollisionPointAndEllipse( rx,         ry,          cx, cy, radius_x, radius_y ) )
+  || ( isCollisionPointAndEllipse( rx + width, ry,          cx, cy, radius_x, radius_y ) )
+  || ( isCollisionPointAndEllipse( rx + width, ry + height, cx, cy, radius_x, radius_y ) )
+  || ( isCollisionPointAndEllipse( rx,         ry + height, cx, cy, radius_x, radius_y ) )
+  ) {
+    return true;
+  }
+  // 楕円の外接矩形と矩形が重なる？（辺の交差を近似）
+  return isCollisionRectAndRect( rx, ry, width, height, cx - radius_x, cy - radius_y, radius_x * 2, radius_y * 2 );
 }
 
 //--------------------------------------

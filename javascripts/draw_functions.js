@@ -338,7 +338,36 @@ function drawCircle( context, x, y, radius, color, is_fill_rect ){
   else {
     context.stroke();
   }
-  
+
+  context.fillStyle = backup_fillStyle;
+  context.strokeStyle = backup_strokeStyle;
+}
+
+//--------------------------------------
+// 楕円描画（radius_x == radius_y なら真円）
+//--------------------------------------
+function drawEllipse( context, x, y, radius_x, radius_y, color, is_fill_rect ){
+  x = Math.floor( x );
+  y = Math.floor( y );
+  var backup_fillStyle    = context.fillStyle;
+  var backup_strokeStyle  = context.strokeStyle;
+  if ( color ) {
+    context.fillStyle = color;
+    context.strokeStyle = color;
+  }
+
+  context.beginPath();
+  // 負の半径は描画エラーになるため絶対値でガードする
+  context.ellipse( x, y, Math.abs( radius_x ), Math.abs( radius_y ), 0, 0 * RADIAN, 360 * RADIAN, false );
+  context.closePath();
+
+  if ( is_fill_rect ) {
+    context.fill();
+  }
+  else {
+    context.stroke();
+  }
+
   context.fillStyle = backup_fillStyle;
   context.strokeStyle = backup_strokeStyle;
 }
