@@ -547,7 +547,35 @@ function EditorScreen(){
       primitives.push( { kind:"line", shape_key:"hline", start: { x: x, y: y + 2 }, end: { x: x + w, y: y + 2 } } );
       break;
 
-    // その他（class/object/box/text_box/text/frame/partition系など）は包含矩形の4辺が輪郭
+    // frame（左上のタブ＝name矩形＋その下の枠線＝contents矩形）はタブ型の輪郭
+    //   接続対象: nameの上辺・左辺・右辺 ＋ 枠線の下辺・左辺・右辺 ＋ 枠線上辺のうちnameと接していない露出部。
+    //   nameは可変サイズのため、露出部が無い（name幅=枠線幅）場合は枠線上辺を輪郭に含めない
+    //   （接続済みの場合はanchor不整合の自己修復により近傍の輪郭へ再接続される）。
+    case "frame":
+      var name_rect = ( uml_object.inner_rects ? uml_object.inner_rects["name"] : null );
+      var contents_rect = ( uml_object.inner_rects ? uml_object.inner_rects["contents"] : null );
+      if ( name_rect && contents_rect ) {
+        // name（タブ）の上辺・左辺・右辺
+        primitives.push( { kind:"line", shape_key:"name-top",   start: { x: name_rect.x,                    y: name_rect.y }, end: { x: name_rect.x + name_rect.width, y: name_rect.y } } );
+        primitives.push( { kind:"line", shape_key:"name-left",  start: { x: name_rect.x,                    y: name_rect.y }, end: { x: name_rect.x,                    y: name_rect.y + name_rect.height } } );
+        primitives.push( { kind:"line", shape_key:"name-right", start: { x: name_rect.x + name_rect.width,  y: name_rect.y }, end: { x: name_rect.x + name_rect.width,  y: name_rect.y + name_rect.height } } );
+        // 枠線（contents）の上辺はnameの下辺と接していない露出部のみ（nameの左側・右側それぞれ）
+        // name矩形の左辺は移動可能なため、nameより左側にも露出部が生じ得る
+        if ( contents_rect.x < name_rect.x ) {
+          primitives.push( { kind:"line", shape_key:"frame-top-left", start: { x: contents_rect.x, y: contents_rect.y }, end: { x: name_rect.x, y: contents_rect.y } } );
+        }
+        if ( name_rect.x + name_rect.width < contents_rect.x + contents_rect.width ) {
+          primitives.push( { kind:"line", shape_key:"frame-top", start: { x: name_rect.x + name_rect.width, y: contents_rect.y }, end: { x: contents_rect.x + contents_rect.width, y: contents_rect.y } } );
+        }
+        // 枠線（contents）の左辺・右辺・下辺
+        primitives.push( { kind:"line", shape_key:"frame-left",   start: { x: contents_rect.x,                        y: contents_rect.y },                          end: { x: contents_rect.x,                        y: contents_rect.y + contents_rect.height } } );
+        primitives.push( { kind:"line", shape_key:"frame-right",  start: { x: contents_rect.x + contents_rect.width, y: contents_rect.y },                          end: { x: contents_rect.x + contents_rect.width, y: contents_rect.y + contents_rect.height } } );
+        primitives.push( { kind:"line", shape_key:"frame-bottom", start: { x: contents_rect.x,                        y: contents_rect.y + contents_rect.height },   end: { x: contents_rect.x + contents_rect.width, y: contents_rect.y + contents_rect.height } } );
+        break;
+      }
+      // 内部矩形が取得できない場合は包含矩形にフォールバックする（意図的にbreak無し）
+
+    // その他（class/object/box/text_box/text/partition系など）は包含矩形の4辺が輪郭
     default:
       primitives.push( { kind:"edge", edge:"top",    start: { x: x,     y: y },     end: { x: x + w, y: y } } );
       primitives.push( { kind:"edge", edge:"right",  start: { x: x + w, y: y },     end: { x: x + w, y: y + h } } );
@@ -1935,12 +1963,16 @@ function EditorScreen(){
         bottom_inner_shape.height -= move_amount_y;
       }
       else if ( inner_shape.is_bind_object_height ) {
-        uml_object.height += move_amount_y;  
+        uml_object.height += move_amount_y;
       }
     }
 
     // 内部図形の最小サイズ補正
     this._normalizationInnerUmlObject( uml_object );
+
+    // 内部矩形のサイズ変更で図形の輪郭が変わる（frameのnameタブ等）ため、接続中の関係線を追従させる
+    // （anchorに対応する輪郭が消えた場合は_updateRelationInnerLineUmlObject内の自己修復で近傍の輪郭へ再接続される）
+    this._updateRelationUmlObject( uml_object );
 
     // 紙サイズの修正
     this._refreshPaperSize();
