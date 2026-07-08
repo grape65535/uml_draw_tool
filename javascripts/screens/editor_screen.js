@@ -2293,7 +2293,8 @@ function EditorScreen(){
   //   include_transparent: 選択肢に「透明」を含める場合はtrue
   //--------------------------------------
   EditorScreen.prototype._buildColorOptions = function( selected_value, include_white, include_transparent ){
-    // 表示順: black, gray, (white), red, brown, pink, green, dark green, light green, blue, dark blue, sky blue, yellow, purple, (transparent)
+    // 表示順: black, gray, (white), red, brown, pink, green, dark_green, light_green, blue, dark_blue, sky_blue, yellow, purple, (transparent)
+    // 表示ラベルの空白はプルダウン表示の折り返し対策でアンダースコアにする（内部値 value は darkgreen 等で不変）
     var colors = [
       [ "black",      "black" ],
       [ "gray",       "gray" ]
@@ -2304,11 +2305,11 @@ function EditorScreen(){
       [ "brown",      "brown" ],
       [ "pink",       "pink" ],
       [ "green",      "green" ],
-      [ "darkgreen",  "dark green" ],
-      [ "lightgreen", "light green" ],
+      [ "darkgreen",  "dark_green" ],
+      [ "lightgreen", "light_green" ],
       [ "blue",       "blue" ],
-      [ "darkblue",   "dark blue" ],
-      [ "skyblue",    "sky blue" ],
+      [ "darkblue",   "dark_blue" ],
+      [ "skyblue",    "sky_blue" ],
       [ "yellow",     "yellow" ],
       [ "purple",     "purple" ]
     ] );
