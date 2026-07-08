@@ -468,51 +468,253 @@ function EditorScreen(){
   };
 
   //--------------------------------------
-  // 指定UMLオブジェクトの指定包囲の接点情報を取得する
-  //   direction
-  //      上を0として、時計回りに右を1、下を2、左を3
+  // 指定UMLオブジェクトの「図形の輪郭」を構成するプリミティブ一覧を取得する
+  //   関係線はオブジェクトの包含矩形ではなく、この輪郭に対して吸着・接続する。
+  //   種別:
+  //     { kind:"edge",    edge:"top"等,   start:{x,y}, end:{x,y} }  … 矩形系の外周辺
+  //     { kind:"polygon", edge_index:n,   start:{x,y}, end:{x,y} }  … 多角形（菱形・comment）の辺
+  //     { kind:"line",    shape_key:"arm"等, start:{x,y}, end:{x,y} } … 線図形（actor・close・縦横線）
+  //     { kind:"circle",  cx, cy, radius }                           … 円（start/end/begin/terminate）
+  //     { kind:"ellipse", cx, cy, radius_x, radius_y }               … 楕円（ellipse）
+  //   ※classの「目」の内部横線などは輪郭ではないため含まない。textは従来どおり包含矩形。
   //--------------------------------------
-  EditorScreen.prototype._getContactUmlObjectRectByDirection = function( uml_object, direction ){
-    var contact = { x:uml_object.x, y:uml_object.y, offset: 0 };
-    if ( 0 == direction || 2 == direction ) {
-      contact.offset = Math.round( uml_object.width / 2 );
-      contact.x += contact.offset;
-      if ( 2 == direction ) contact.y += uml_object.height;
-    }
-    else {
-      contact.offset = Math.round( uml_object.height / 2 );
-      contact.y += contact.offset;
-      if ( 1 == direction ) contact.x += uml_object.width;
+  EditorScreen.prototype._getUmlObjectOutlinePrimitives = function( uml_object ){
+    var x = uml_object.x, y = uml_object.y, w = uml_object.width, h = uml_object.height;
+    var primitives = [];
+
+    switch ( uml_object.type ) {
+    // 円形（外周円が輪郭。endの内円やterminateの×線は輪郭ではない）
+    case "start":
+    case "end":
+    case "begin":
+    case "terminate":
+      primitives.push( { kind:"circle", cx: x + w / 2, cy: y + h / 2, radius: w / 2 } );
+      break;
+
+    // 楕円
+    case "ellipse":
+      primitives.push( { kind:"ellipse", cx: x + w / 2, cy: y + h / 2, radius_x: w / 2, radius_y: h / 2 } );
+      break;
+
+    // 菱形
+    case "branch":
+      var points = [
+        { x: x + w / 2, y: y },
+        { x: x + w,     y: y + h / 2 },
+        { x: x + w / 2, y: y + h },
+        { x: x,         y: y + h / 2 },
+      ];
+      for ( var i=0; i<points.length; i++ ) {
+        primitives.push( { kind:"polygon", edge_index:i, start: points[i], end: points[ ( i + 1 ) % points.length ] } );
+      }
+      break;
+
+    // 角折れ矩形（折れの斜め辺を含む多角形。折れの装飾線は輪郭ではない）
+    case "comment":
+      var points = [
+        { x: x,          y: y },
+        { x: x + w,      y: y },
+        { x: x + w,      y: y + h - 20 },
+        { x: x + w - 20, y: y + h },
+        { x: x,          y: y + h },
+      ];
+      for ( var i=0; i<points.length; i++ ) {
+        primitives.push( { kind:"polygon", edge_index:i, start: points[i], end: points[ ( i + 1 ) % points.length ] } );
+      }
+      break;
+
+    // 人型（頭の円と手足の線に接続する）
+    case "actor":
+      primitives.push( { kind:"circle", cx: x + w / 2, cy: y + w / 2, radius: w / 2 } );
+      primitives.push( { kind:"line", shape_key:"arm",       start: { x: x,           y: y + h * 0.48 },   end: { x: x + w,     y: y + h * 0.48 } } );
+      primitives.push( { kind:"line", shape_key:"body",      start: { x: x + w / 2,   y: y + h * 0.4166 }, end: { x: x + w / 2, y: y + h * 0.7 } } );
+      primitives.push( { kind:"line", shape_key:"left_leg",  start: { x: x + w / 2,   y: y + h * 0.7 },    end: { x: x,         y: y + h } } );
+      primitives.push( { kind:"line", shape_key:"right_leg", start: { x: x + w / 2,   y: y + h * 0.7 },    end: { x: x + w,     y: y + h } } );
+      break;
+
+    // ×印（2本の斜め線に接続する）
+    case "close":
+      primitives.push( { kind:"line", shape_key:"bottom-left-to-top-right", start: { x: x,     y: y + h }, end: { x: x + w, y: y } } );
+      primitives.push( { kind:"line", shape_key:"top-left-to-bottom-right", start: { x: x,     y: y },     end: { x: x + w, y: y + h } } );
+      break;
+
+    // 縦線・横線（線自体に接続する）
+    case "vertical_line":
+      primitives.push( { kind:"line", shape_key:"vline", start: { x: x + 2, y: y }, end: { x: x + 2, y: y + h } } );
+      break;
+
+    case "horizontal_line":
+      primitives.push( { kind:"line", shape_key:"hline", start: { x: x, y: y + 2 }, end: { x: x + w, y: y + 2 } } );
+      break;
+
+    // その他（class/object/box/text_box/text/frame/partition系など）は包含矩形の4辺が輪郭
+    default:
+      primitives.push( { kind:"edge", edge:"top",    start: { x: x,     y: y },     end: { x: x + w, y: y } } );
+      primitives.push( { kind:"edge", edge:"right",  start: { x: x + w, y: y },     end: { x: x + w, y: y + h } } );
+      primitives.push( { kind:"edge", edge:"bottom", start: { x: x,     y: y + h }, end: { x: x + w, y: y + h } } );
+      primitives.push( { kind:"edge", edge:"left",   start: { x: x,     y: y },     end: { x: x,     y: y + h } } );
+      break;
     }
 
+    return primitives;
+  };
+
+  //--------------------------------------
+  // 輪郭プリミティブ上の指定座標への最近点を取得する
+  //   返却: { x, y, distance, ratio(線分系のみ), angle(円・楕円のみ, 度) }
+  //--------------------------------------
+  EditorScreen.prototype._getNearestPointOnOutlinePrimitive = function( primitive, px, py ){
+    // 円・楕円は中心からの角度で最近点を求める（楕円はパラメトリック角による近似）
+    if ( "circle" == primitive.kind || "ellipse" == primitive.kind ) {
+      var rx = ( "circle" == primitive.kind ? primitive.radius : primitive.radius_x );
+      var ry = ( "circle" == primitive.kind ? primitive.radius : primitive.radius_y );
+      var dx = px - primitive.cx;
+      var dy = py - primitive.cy;
+      // 中心と一致する場合は上（270度）を採用する
+      var angle = ( 0 == dx && 0 == dy ) ? 270 : Math.atan2( ( 0 == ry ? dy : dy / ry ), ( 0 == rx ? dx : dx / rx ) ) / RADIAN;
+      var point = {
+        x: primitive.cx + rx * Math.cos( angle * RADIAN ),
+        y: primitive.cy + ry * Math.sin( angle * RADIAN ),
+      };
+      return {
+        x: point.x,
+        y: point.y,
+        distance: Math.sqrt( Math.pow( px - point.x, 2 ) + Math.pow( py - point.y, 2 ) ),
+        angle: Math.round( angle * 100 ) / 100,
+      };
+    }
+
+    // 線分系（矩形辺・多角形辺・線）は線分上への射影で最近点を求める
+    var sx = primitive.start.x, sy = primitive.start.y;
+    var ex = primitive.end.x,   ey = primitive.end.y;
+    var length2 = Math.pow( ex - sx, 2 ) + Math.pow( ey - sy, 2 );
+    var ratio = ( 0 == length2 ) ? 0 : ( ( px - sx ) * ( ex - sx ) + ( py - sy ) * ( ey - sy ) ) / length2;
+    ratio = Math.max( 0, Math.min( 1, ratio ) );
+    var point = { x: sx + ( ex - sx ) * ratio, y: sy + ( ey - sy ) * ratio };
     return {
-      owner:      uml_object,
-      type:       "object_rect",
-      base_type:  [ "top", "right", "bottom", "left" ][ direction ],
-      distance:   0,
-      contact:    { x:contact.x, y:contact.y },
-      offset:     contact.offset,
-      is_inside:  true
+      x: point.x,
+      y: point.y,
+      distance: Math.sqrt( Math.pow( px - point.x, 2 ) + Math.pow( py - point.y, 2 ) ),
+      ratio: Math.round( ratio * 10000 ) / 10000,
     };
   };
 
   //--------------------------------------
-  // 指定UMLオブジェクトと座標の距離を取得する
+  // 輪郭上の接点からルーティング用の方位（上下左右）を求める
   //--------------------------------------
-  EditorScreen.prototype._getDistanceUmlObjectRectByPoint = function( uml_object, x, y ){
-    // 指定座標と矩形の4辺との間の距離を計算し、最も近い辺への情報を取得する
-    var contacts = getDistanceRectByPoint( x, y, { x: uml_object.x, y: uml_object.y, width: uml_object.width, height: uml_object.height } );
-    contacts = contacts.sort( function( a, b ){ return a.distance - b.distance } );
+  EditorScreen.prototype._getBaseTypeByOutlinePoint = function( uml_object, px, py ){
+    var dx = ( px - ( uml_object.x + uml_object.width / 2 ) ) / Math.max( 1, uml_object.width );
+    var dy = ( py - ( uml_object.y + uml_object.height / 2 ) ) / Math.max( 1, uml_object.height );
+    if ( Math.abs( dx ) > Math.abs( dy ) ) return ( 0 > dx ? "left" : "right" );
+    return ( 0 > dy ? "top" : "bottom" );
+  };
+
+  //--------------------------------------
+  // 指定座標に最も近いUMLオブジェクト輪郭上の接点情報を取得する
+  //--------------------------------------
+  EditorScreen.prototype._getDistanceUmlObjectOutlineByPoint = function( uml_object, x, y ){
+    var primitives = this._getUmlObjectOutlinePrimitives( uml_object );
+    var nearest = null;
+    var nearest_primitive = null;
+    for ( var i=0; i<primitives.length; i++ ) {
+      var candidate = this._getNearestPointOnOutlinePrimitive( primitives[i], x, y );
+      if ( ! nearest || candidate.distance < nearest.distance ) {
+        nearest = candidate;
+        nearest_primitive = primitives[i];
+      }
+    }
+    if ( ! nearest ) return null;
+
+    // 接続情報（anchor）を構築する。矩形辺は従来のルーティング互換のため辺名をbase_typeにする
+    var anchor = { kind: nearest_primitive.kind };
+    var base_type = null;
+    switch ( nearest_primitive.kind ) {
+    case "edge":
+      anchor.edge = nearest_primitive.edge;
+      anchor.ratio = nearest.ratio;
+      base_type = nearest_primitive.edge;
+      break;
+    case "polygon":
+      anchor.edge_index = nearest_primitive.edge_index;
+      anchor.ratio = nearest.ratio;
+      break;
+    case "line":
+      anchor.shape_key = nearest_primitive.shape_key;
+      anchor.ratio = nearest.ratio;
+      break;
+    case "circle":
+    case "ellipse":
+      anchor.angle = nearest.angle;
+      break;
+    }
+    if ( ! base_type ) base_type = this._getBaseTypeByOutlinePoint( uml_object, nearest.x, nearest.y );
+
     return {
       owner:      uml_object,
-      type:       "object_rect",
-      base_type:  contacts[0].type,
-      distance:   contacts[0].distance,
-      contact:    contacts[0].contact,
-      // percent: ( "top" == contacts[0].type || "bottom" == contacts[0].type ? ( contacts[0].contact.x - uml_object.x ) / uml_object.width : ( contacts[0].contact.y - uml_object.y ) / uml_object.height )
-      offset:     ( "top" == contacts[0].type || "bottom" == contacts[0].type ? ( contacts[0].contact.x - uml_object.x ) : ( contacts[0].contact.y - uml_object.y ) ),
+      type:       "object_outline",
+      base_type:  base_type,
+      distance:   nearest.distance,
+      contact:    { x: Math.round( nearest.x ), y: Math.round( nearest.y ) },
+      anchor:     anchor,
       is_inside:  isCollisionPointAndRect( x, y, uml_object.x, uml_object.y, uml_object.width, uml_object.height )
     };
+  };
+
+  //--------------------------------------
+  // 輪郭上の「特徴点」一覧を取得する（接続時の吸着候補）
+  //   円・楕円=上下左右の4極点 / 多角形=頂点＋辺の中点 / 矩形辺=辺の中点 / 線=両端＋中点
+  //--------------------------------------
+  EditorScreen.prototype._getUmlObjectOutlineFeaturePoints = function( uml_object ){
+    var primitives = this._getUmlObjectOutlinePrimitives( uml_object );
+    var feature_points = [];
+    for ( var i=0; i<primitives.length; i++ ) {
+      var primitive = primitives[i];
+      switch ( primitive.kind ) {
+      case "circle":
+      case "ellipse":
+        var rx = ( "circle" == primitive.kind ? primitive.radius : primitive.radius_x );
+        var ry = ( "circle" == primitive.kind ? primitive.radius : primitive.radius_y );
+        feature_points.push( { x: primitive.cx + rx, y: primitive.cy } );
+        feature_points.push( { x: primitive.cx - rx, y: primitive.cy } );
+        feature_points.push( { x: primitive.cx,      y: primitive.cy + ry } );
+        feature_points.push( { x: primitive.cx,      y: primitive.cy - ry } );
+        break;
+      case "polygon":
+      case "line":
+        feature_points.push( { x: primitive.start.x, y: primitive.start.y } );
+        feature_points.push( { x: primitive.end.x,   y: primitive.end.y } );
+        feature_points.push( { x: ( primitive.start.x + primitive.end.x ) / 2, y: ( primitive.start.y + primitive.end.y ) / 2 } );
+        break;
+      case "edge":
+        feature_points.push( { x: ( primitive.start.x + primitive.end.x ) / 2, y: ( primitive.start.y + primitive.end.y ) / 2 } );
+        break;
+      }
+    }
+    return feature_points;
+  };
+
+  //--------------------------------------
+  // 指定UMLオブジェクトの指定方位の輪郭接点情報を取得する
+  //   direction
+  //      上を0として、時計回りに右を1、下を2、左を3
+  //--------------------------------------
+  EditorScreen.prototype._getContactUmlObjectOutlineByDirection = function( uml_object, direction ){
+    // 包含矩形の各辺中央を方位の基準点とし、輪郭へ射影した点を接点とする
+    // （円=極点、菱形=頂点、矩形=辺の中央になる）
+    var point = { x: uml_object.x + uml_object.width / 2, y: uml_object.y + uml_object.height / 2 };
+    switch ( direction ) {
+    case 0: point.y = uml_object.y;                     break;
+    case 1: point.x = uml_object.x + uml_object.width;  break;
+    case 2: point.y = uml_object.y + uml_object.height; break;
+    case 3: point.x = uml_object.x;                     break;
+    }
+
+    var contact = this._getDistanceUmlObjectOutlineByPoint( uml_object, point.x, point.y );
+    // ルーティング用の方位は指定方位を優先する
+    contact.base_type = [ "top", "right", "bottom", "left" ][ direction ];
+    contact.distance = 0;
+    contact.is_inside = true;
+    return contact;
   };
 
   //--------------------------------------
@@ -541,7 +743,7 @@ function EditorScreen(){
         contact = this._findNearUmlObjectByPoint( except_uml_object, x, y, uml_object );
       }
       else {
-        contact = this._getDistanceUmlObjectRectByPoint( uml_object, x, y );
+        contact = this._getDistanceUmlObjectOutlineByPoint( uml_object, x, y );
       }
       if ( contact ) {
         // 座標と線の距離が30以下でないならスキップ
@@ -1423,29 +1625,79 @@ function EditorScreen(){
   };
 
   //--------------------------------------
+  // 接続情報（anchor）から接続先オブジェクトの現在の輪郭上の接点座標を求める
+  //   接続先のサイズ変更に追従できるよう、接続位置は辺の比率／角度で保持されている。
+  //   anchorに対応する輪郭が見つからない場合（type入替等）はnullを返す。
+  //--------------------------------------
+  EditorScreen.prototype._getAnchorContactPoint = function( uml_object, anchor ){
+    if ( ! anchor ) return null;
+    var primitives = this._getUmlObjectOutlinePrimitives( uml_object );
+    for ( var i=0; i<primitives.length; i++ ) {
+      var primitive = primitives[i];
+      if ( primitive.kind != anchor.kind ) continue;
+      switch ( primitive.kind ) {
+      case "edge":
+        if ( primitive.edge != anchor.edge ) continue;
+        break;
+      case "polygon":
+        if ( primitive.edge_index != anchor.edge_index ) continue;
+        break;
+      case "line":
+        if ( primitive.shape_key != anchor.shape_key ) continue;
+        break;
+      }
+
+      // 円・楕円は角度から、線分系は比率から接点を求める
+      if ( "circle" == primitive.kind || "ellipse" == primitive.kind ) {
+        var rx = ( "circle" == primitive.kind ? primitive.radius : primitive.radius_x );
+        var ry = ( "circle" == primitive.kind ? primitive.radius : primitive.radius_y );
+        return {
+          x: Math.round( primitive.cx + rx * Math.cos( anchor.angle * RADIAN ) ),
+          y: Math.round( primitive.cy + ry * Math.sin( anchor.angle * RADIAN ) ),
+        };
+      }
+      var ratio = Math.max( 0, Math.min( 1, anchor.ratio || 0 ) );
+      return {
+        x: Math.round( primitive.start.x + ( primitive.end.x - primitive.start.x ) * ratio ),
+        y: Math.round( primitive.start.y + ( primitive.end.y - primitive.start.y ) * ratio ),
+      };
+    }
+    return null;
+  };
+
+  //--------------------------------------
   // リレーションのUMLオブジェクトの線の座標を更新
   //--------------------------------------
   EditorScreen.prototype._updateRelationInnerLineUmlObject = function( uml_object, inner_line, dest_uml_object ){
-    switch( inner_line.relation.base_type ) {
-    case "top":
-      inner_line.x = dest_uml_object.x + ( dest_uml_object.width < inner_line.relation.offset ? dest_uml_object.width : inner_line.relation.offset );
-      inner_line.y = dest_uml_object.y;
-      break;
+    // 新形式（輪郭anchor）から接点を再計算する
+    var point = this._getAnchorContactPoint( dest_uml_object, inner_line.relation.anchor );
 
-    case "right":
-      inner_line.x = dest_uml_object.x + dest_uml_object.width;
-      inner_line.y = dest_uml_object.y + ( dest_uml_object.height < inner_line.relation.offset ? dest_uml_object.height : inner_line.relation.offset );
-      break;
+    // anchorが無い（旧形式クリップボード等）場合は旧形式（辺+絶対offset）から求める
+    if ( ! point && "number" == typeof inner_line.relation.offset ) {
+      var offset = inner_line.relation.offset;
+      switch( inner_line.relation.base_type ) {
+      case "top":    point = { x: dest_uml_object.x + Math.min( dest_uml_object.width, offset ),  y: dest_uml_object.y };                          break;
+      case "right":  point = { x: dest_uml_object.x + dest_uml_object.width,                      y: dest_uml_object.y + Math.min( dest_uml_object.height, offset ) }; break;
+      case "bottom": point = { x: dest_uml_object.x + Math.min( dest_uml_object.width, offset ),  y: dest_uml_object.y + dest_uml_object.height }; break;
+      case "left":   point = { x: dest_uml_object.x,                                              y: dest_uml_object.y + Math.min( dest_uml_object.height, offset ) }; break;
+      }
+    }
 
-    case "bottom":
-      inner_line.x = dest_uml_object.x + ( dest_uml_object.width < inner_line.relation.offset ? dest_uml_object.width : inner_line.relation.offset );
-      inner_line.y = dest_uml_object.y + dest_uml_object.height;
-      break;
+    // anchorに対応する輪郭が見つからない場合（type入替等）は、現在の端点を新しい輪郭へ射影して自己修復する
+    if ( ! point ) {
+      var contact = this._getDistanceUmlObjectOutlineByPoint( dest_uml_object, inner_line.x, inner_line.y );
+      if ( contact ) {
+        inner_line.relation.type = contact.type;
+        inner_line.relation.base_type = contact.base_type;
+        inner_line.relation.anchor = contact.anchor;
+        delete inner_line.relation.offset;
+        point = contact.contact;
+      }
+    }
 
-    case "left":
-      inner_line.x = dest_uml_object.x;
-      inner_line.y = dest_uml_object.y + ( dest_uml_object.height < inner_line.relation.offset ? dest_uml_object.height : inner_line.relation.offset );
-      break;
+    if ( point ) {
+      inner_line.x = point.x;
+      inner_line.y = point.y;
     }
 
     // 内部線からUMLオブジェクト矩形を正規化する
@@ -1736,34 +1988,13 @@ function EditorScreen(){
     if ( ! isIncludeArray( dest_uml_object.owner.relation_ids, relation_uml_object.id ) ){
       dest_uml_object.owner.relation_ids.push( relation_uml_object.id );
     }
-    // リンク先の情報を記録する
+    // リンク先の情報を記録する（接続位置は輪郭上のanchor＝辺+比率／角度で保持する）
     inner_shape.relation = {
       id:         dest_uml_object.owner.id,
       type:       dest_uml_object.type,
       base_type:  dest_uml_object.base_type,
-      offset:     dest_uml_object.offset,
+      anchor:     dest_uml_object.anchor,
     };
-  };
-
-  //--------------------------------------
-  // 関係線の接続時の辺沿いオフセットを吸着させる
-  //   基本は10px単位。ただし辺の中央（edge_length/2）付近（±grid/2=±5px）は中央へ吸着させ、
-  //   その範囲内に10px単位の吸着点がある場合は、その点の±1pxに限り10px点を優先する。
-  //   （branchの菱形やstart/end等の円形で、辺中央に接続すると実線と接続点の隙間が無くなる）
-  //--------------------------------------
-  EditorScreen.prototype._snapConnectionOffset = function( raw_offset, edge_length ){
-    var grid = this.grid_size;
-    var center = edge_length / 2;
-
-    // 中央から±(grid/2)以内は中央へ吸着（ただし10px点の±1pxはそちらを優先）
-    if ( Math.abs( raw_offset - center ) <= ( grid / 2 ) ) {
-      var nearest_grid = Math.round( raw_offset / grid ) * grid;
-      if ( Math.abs( raw_offset - nearest_grid ) <= 1 ) return nearest_grid;
-      return center;
-    }
-
-    // それ以外は従来通り10px単位（切り捨て）
-    return Math.floor( raw_offset / grid ) * grid;
   };
 
   //--------------------------------------
@@ -1791,16 +2022,19 @@ function EditorScreen(){
         var contact = this._findNearUmlObjectByPoint( uml_object, x, y );
         // 接続先がある時
         if ( contact ) {
-          // 接続時の辺沿いオフセットを、10px単位＋辺中央への吸着ルールで確定する
-          var edge_length = isIncludeArray( [ "top", "bottom" ], contact.base_type ) ? contact.owner.width : contact.owner.height;
-          contact.offset = Math.max( 0, Math.min( edge_length, this._snapConnectionOffset( contact.offset, edge_length ) ) );
-
-          // 確定したoffsetから接続点座標を再計算する
-          switch ( contact.base_type ) {
-          case "top":    contact.contact = { x: contact.owner.x + contact.offset,      y: contact.owner.y };                        break;
-          case "bottom": contact.contact = { x: contact.owner.x + contact.offset,      y: contact.owner.y + contact.owner.height }; break;
-          case "left":   contact.contact = { x: contact.owner.x,                       y: contact.owner.y + contact.offset };       break;
-          case "right":  contact.contact = { x: contact.owner.x + contact.owner.width, y: contact.owner.y + contact.offset };       break;
+          // 輪郭上の特徴点（円の極点・多角形の頂点や辺中点・矩形の辺中点など）の近傍なら特徴点へ吸着する
+          var feature_points = this._getUmlObjectOutlineFeaturePoints( contact.owner );
+          var nearest_feature = null;
+          for ( var i=0; i<feature_points.length; i++ ) {
+            var feature_distance = Math.sqrt( Math.pow( contact.contact.x - feature_points[i].x, 2 ) + Math.pow( contact.contact.y - feature_points[i].y, 2 ) );
+            if ( feature_distance <= ( this.grid_size / 2 ) && ( ! nearest_feature || feature_distance < nearest_feature.distance ) ) {
+              nearest_feature = { x: feature_points[i].x, y: feature_points[i].y, distance: feature_distance };
+            }
+          }
+          if ( nearest_feature ) {
+            // 特徴点を輪郭に射影し直して接点・anchorを再構築する（特徴点は輪郭上なので実質そのまま）
+            var feature_contact = this._getDistanceUmlObjectOutlineByPoint( contact.owner, nearest_feature.x, nearest_feature.y );
+            if ( feature_contact ) contact = feature_contact;
           }
 
           // カーソル位置を接続位置だったことにする
@@ -3050,9 +3284,13 @@ function EditorScreen(){
           y:0,
           relation: {
             id: null,
-            type: "object_rect",
-            base_type: "top"
-            offset: 0,
+            type: "object_outline",
+            base_type: "top",  // ルーティング用の方位（上下左右）
+            anchor: {          // 図形の輪郭上の接続位置（リサイズ追従のため比率・角度で保持）
+              kind: "edge",    // edge(矩形辺) | polygon(多角形辺) | line(線) | circle | ellipse
+              edge: "top",     // kind=edge: 辺名 / kind=polygon: edge_index / kind=line: shape_key
+              ratio: 0.5,      // 線分系: 辺の開始点からの比率0〜1 / 円・楕円: angle(度)
+            }
           }
         },
       */ ],
@@ -5155,8 +5393,8 @@ function EditorScreen(){
     this.save_data.priorities.push( relation_uml_object.id );
 
     // リレーションする
-    this._linkRelation( relation_uml_object, relation_uml_object.inner_lines[0], this._getContactUmlObjectRectByDirection( selected_uml_object, direction ) );
-    this._linkRelation( relation_uml_object, relation_uml_object.inner_lines[1], this._getContactUmlObjectRectByDirection( pasted_uml_object, counter_direction ) );
+    this._linkRelation( relation_uml_object, relation_uml_object.inner_lines[0], this._getContactUmlObjectOutlineByDirection( selected_uml_object, direction ) );
+    this._linkRelation( relation_uml_object, relation_uml_object.inner_lines[1], this._getContactUmlObjectOutlineByDirection( pasted_uml_object, counter_direction ) );
 
     // 内部線からUMLオブジェクト矩形を正規化する
     this._updateRelationInnerLineUmlObject( relation_uml_object, relation_uml_object.inner_lines[0], selected_uml_object );
@@ -5641,6 +5879,47 @@ function EditorScreen(){
       } );
     }
 
+    if ( 1.8 > data.version ) {
+      // 関係線の接続情報を旧形式（包含矩形の辺+絶対offset）から新形式（図形輪郭上のanchor＝辺+比率／角度）へ変換する。
+      // 旧接続点（矩形辺上の座標）を接続先の輪郭へ射影した点を新しい接続位置とする。
+      var object_map = {};
+      this._seekSaveData( data.objects, function( uml_object ){ object_map[ uml_object.id ] = uml_object; } );
+      this._seekSaveData( data.objects, function( uml_object ){
+        if ( "relation" != uml_object.type || ! uml_object.inner_lines ) return;
+        var has_converted = false;
+        for ( var i=0; i<uml_object.inner_lines.length; i++ ) {
+          var relation = uml_object.inner_lines[i].relation;
+          if ( ! relation || relation.anchor ) continue;
+          var dest_uml_object = object_map[ relation.id ];
+          if ( ! dest_uml_object ) continue;
+
+          // 旧形式から旧接続点（包含矩形の辺上の座標）を求める
+          var offset = ( "number" == typeof relation.offset ? relation.offset : 0 );
+          var old_point = null;
+          switch ( relation.base_type ) {
+          case "top":    old_point = { x: dest_uml_object.x + Math.min( dest_uml_object.width, offset ), y: dest_uml_object.y };                          break;
+          case "right":  old_point = { x: dest_uml_object.x + dest_uml_object.width,                     y: dest_uml_object.y + Math.min( dest_uml_object.height, offset ) }; break;
+          case "bottom": old_point = { x: dest_uml_object.x + Math.min( dest_uml_object.width, offset ), y: dest_uml_object.y + dest_uml_object.height }; break;
+          case "left":   old_point = { x: dest_uml_object.x,                                             y: dest_uml_object.y + Math.min( dest_uml_object.height, offset ) }; break;
+          default:       old_point = { x: uml_object.inner_lines[i].x, y: uml_object.inner_lines[i].y };  break;
+          }
+
+          // 新しい輪郭へ射影して新形式に変換し、端点も輪郭上へ移す
+          var contact = this._getDistanceUmlObjectOutlineByPoint( dest_uml_object, old_point.x, old_point.y );
+          if ( ! contact ) continue;
+          relation.type = contact.type;
+          relation.base_type = contact.base_type;
+          relation.anchor = contact.anchor;
+          delete relation.offset;
+          uml_object.inner_lines[i].x = contact.contact.x;
+          uml_object.inner_lines[i].y = contact.contact.y;
+          has_converted = true;
+        }
+        // 端点が動いた場合は関係線の全体矩形を正規化する
+        if ( has_converted ) this._normalizationUmlObjectSizeByInnerLine( uml_object );
+      }.bind( this ) );
+    }
+
     data.version = this.current_version;
     return data;
   };
@@ -5787,7 +6066,7 @@ function EditorScreen(){
 
     // アプリケーション名
     this.application_name = "uml_draw_tool";
-    this.current_version = 1.7;
+    this.current_version = 1.8;
 
     // 画像管理を生成
     this.image_manager = ( new ImageManager() ).initialize(this);
