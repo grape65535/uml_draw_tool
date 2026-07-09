@@ -2479,19 +2479,19 @@ function EditorScreen(){
   //--------------------------------------
   EditorScreen.prototype._colorPalette = function(){
     return {
-      black:      [   0,   0,   0 ],
-      gray:       [ 130, 130, 130 ],
       white:      [ 255, 255, 255 ],
+      gray:       [ 130, 130, 130 ],
+      black:      [   0,   0,   0 ],
+      pink:       [ 255, 150, 150 ],
       red:        [ 220,   0,   0 ],
       brown:      [ 140,  80,  20 ],
-      pink:       [ 255, 120, 120 ],  // 明るい赤
+      lightgreen: [ 140, 215, 120 ],
       green:      [   0, 150,   0 ],
       darkgreen:  [   0,  90,  40 ],
-      lightgreen: [ 140, 215, 120 ],
+      skyblue:    [  60, 180, 225 ],
       blue:       [   0,   0, 220 ],
       darkblue:   [   0,   0, 120 ],
-      skyblue:    [  60, 180, 225 ],
-      yellow:     [ 220, 190,   0 ],
+      yellow:     [ 250, 220,   0 ],
       purple:     [ 140,   0, 180 ]
     };
   };
@@ -2520,13 +2520,19 @@ function EditorScreen(){
   //--------------------------------------
   EditorScreen.prototype._backgroundColorPalette = function(){
     return {
-      red:        [ 255, 205, 205 ],  // 明るい赤（pink よりさらに淡い）
-      brown:      [ 220, 195, 165 ],  // 明るい茶（ベージュ）
-      green:      [ 205, 240, 200 ],  // 明るい緑（light green より淡い緑寄り）
-      darkgreen:  [ 180, 218, 205 ],  // 明るい深緑（緑よりやや青みのある淡いteal）
-      blue:       [ 210, 225, 255 ],  // 明るい青（sky blue より淡い）
-      darkblue:   [ 188, 192, 232 ],  // 明るい紺（青よりやや暗め・灰みのある淡い青）
-      purple:     [ 230, 205, 245 ]   // 明るい紫（淡いラベンダー）
+      // 背景色は薄い色にする
+      gray:       [ 180, 180, 180 ],
+      pink:       [ 255, 220, 220 ],
+      red:        [ 255, 180, 180 ],
+      brown:      [ 220, 195, 165 ],
+      lightgreen: [ 170, 255, 150 ],
+      green:      [ 205, 240, 200 ],
+      darkgreen:  [ 180, 218, 205 ],
+      skyblue:    [ 120, 240, 225 ],
+      blue:       [ 210, 225, 255 ],
+      darkblue:   [ 188, 192, 232 ],
+      yellow:     [ 250, 250, 150 ],
+      purple:     [ 230, 205, 245 ] 
     };
   };
 
@@ -2559,23 +2565,22 @@ function EditorScreen(){
   //   include_transparent: 選択肢に「透明」を含める場合はtrue
   //--------------------------------------
   EditorScreen.prototype._buildColorOptions = function( selected_value, include_white, include_transparent ){
-    // 表示順: black, gray, (white), red, brown, pink, green, dark_green, light_green, blue, dark_blue, sky_blue, yellow, purple, (transparent)
+    // 表示順: (white), gray, black, pink, red, brown, light_green, green, dark_green, sky_blue, blue, dark_blue, yellow, purple, (transparent)
     // 表示ラベルの空白はプルダウン表示の折り返し対策でアンダースコアにする（内部値 value は darkgreen 等で不変）
-    var colors = [
-      [ "black",      "black" ],
-      [ "gray",       "gray" ]
-    ];
+    var colors = [];
     if ( include_white ) colors.push( [ "white", "white" ] );
     colors = colors.concat( [
+      [ "gray",       "gray" ],
+      [ "black",      "black" ],
+      [ "pink",       "pink" ],
       [ "red",        "red" ],
       [ "brown",      "brown" ],
-      [ "pink",       "pink" ],
+      [ "lightgreen", "light_green" ],
       [ "green",      "green" ],
       [ "darkgreen",  "dark_green" ],
-      [ "lightgreen", "light_green" ],
+      [ "skyblue",    "sky_blue" ],
       [ "blue",       "blue" ],
       [ "darkblue",   "dark_blue" ],
-      [ "skyblue",    "sky_blue" ],
       [ "yellow",     "yellow" ],
       [ "purple",     "purple" ]
     ] );
