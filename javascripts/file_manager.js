@@ -32,6 +32,38 @@ function FileManager(){
   }.bind(this);
 
   //--------------------------------------
+  // ペースト時動作
+  //   OSクリップボードの内容はpasteイベントでのみ権限プロンプト無しで同期的に取得できる。
+  //   （navigator.clipboard.read()はブラウザによって許可UIで保留され、ペーストが遅延・失敗するため使わない）
+  //--------------------------------------
+  FileManager.prototype._onPaste = function( event ){
+    // テキスト入力中（textarea等へのフォーカス中）はブラウザ標準のペースト動作を妨げない
+    var active_element = document.activeElement;
+    if ( active_element && ( "TEXTAREA" == active_element.tagName || "INPUT" == active_element.tagName ) ) return;
+
+    var clipboard_data = ( event.originalEvent || event ).clipboardData;
+    if ( ! clipboard_data ) return;
+
+    event.preventDefault();
+    event.stopPropagation();
+
+    // クリップボードに画像のバイナリファイルがあれば画像として開く
+    var items = clipboard_data.items || [];
+    for ( var i=0; i<items.length; i++ ) {
+      if ( "file" == items[i].kind && items[i].type.match(/^image\//) ) {
+        var file = items[i].getAsFile();
+        if ( file ) {
+          this.openFileAsDataURL( file, this.listener.onOpenFileAsDataURL.bind(this.listener) );
+          return;
+        }
+      }
+    }
+
+    // 画像が無ければ通常のペースト操作としてリスナーに通知する
+    if ( this.listener.onPasteWithoutImage ) this.listener.onPasteWithoutImage();
+  }.bind(this);
+
+  //--------------------------------------
   // コンストラクタ
   //--------------------------------------
   FileManager.prototype.initialize = function( listener ){
@@ -40,6 +72,7 @@ function FileManager(){
     // イベント登録（documentにdragover/dropイベントのリスナを登録し、バブリング停止しなければ、ブラウザ標準のファイルドロップ動作が発生してしまう）
     $(document).on( "dragover", this._onDragover );
     $(document).on( "drop", this._onDrop );
+    $(document).on( "paste", this._onPaste );
 
     return this;
   };
@@ -121,7 +154,8 @@ FileManager();
 ------------------------------------------------------------------------------*/
 function FileManagerListenerInterface(){
   FileManagerListenerInterface.prototype.onOpenFileAsText = function( file, text ){}; // テキストファイル
-  FileManagerListenerInterface.prototype.onOpenFileAsDataURL = function( file, data_url ){}; // 画像のバイナリファイル
+  FileManagerListenerInterface.prototype.onOpenFileAsDataURL = function( file, data_url ){}; // 画像のバイナリファイル（ドロップ・ペースト共通）
   FileManagerListenerInterface.prototype.onOpenFileAsBuffer = function( file, buffer ){}; // 画像以外のバイナリファイル
+  FileManagerListenerInterface.prototype.onPasteWithoutImage = function(){}; // 画像以外のペースト操作
 }
 

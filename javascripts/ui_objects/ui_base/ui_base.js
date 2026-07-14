@@ -96,8 +96,10 @@ function UIBase(){
   UIBase.prototype.isHover = function( statuses ){
     // オブジェクト内にカーソルがある？
     var screen_position = this.screenPosition();
-    var cursor_position = statuses.getCursorPosition();    
-    if ( 
+    var cursor_position = statuses.getCursorPosition();
+    // 一度もカーソル操作が無い時（起動直後のキー入力等）はカーソル位置が取得できない
+    if ( ! cursor_position ) return false;
+    if (
        ( screen_position.x <= cursor_position.x && cursor_position.x < screen_position.x + this.width )
     && ( screen_position.y <= cursor_position.y && cursor_position.y < screen_position.y + this.height )
     ){

@@ -318,6 +318,7 @@ function EditorScreen(){
     for ( var key in uml_object.inner_shapes ) {
       switch ( uml_object.inner_shapes[key].type ) {
       case "rect":
+      case "image":
         if ( isCollisionPointAndRect( x, y, uml_object.inner_shapes[key].x, uml_object.inner_shapes[key].y, uml_object.inner_shapes[key].width, uml_object.inner_shapes[key].height ) ) {
           return `${uml_object.id}.inner_shapes.${key}`;
         }
@@ -379,6 +380,7 @@ function EditorScreen(){
     for ( var key in uml_object.inner_shapes ) {
       switch ( uml_object.inner_shapes[key].type ) {
       case "rect":
+      case "image":
         if ( isCollisionRectAndRect( uml_object.inner_shapes[key].x, uml_object.inner_shapes[key].y, uml_object.inner_shapes[key].width, uml_object.inner_shapes[key].height, x, y, width, height ) ) return true;
         break;
       case "circle":
@@ -1512,10 +1514,11 @@ function EditorScreen(){
         break;
 
       case "rect":
+      case "image":
         uml_object.inner_shapes[key].x += move_amount_x;
         uml_object.inner_shapes[key].y += move_amount_y;
         uml_object.inner_shapes[key].width += move_amount_width;
-        uml_object.inner_shapes[key].height += move_amount_height;  
+        uml_object.inner_shapes[key].height += move_amount_height;
 
         uml_object.inner_shapes[key].x = uml_object.x + ( uml_object.inner_shapes[key].x - uml_object.x ) * width_scale_rate;
         uml_object.inner_shapes[key].y = uml_object.y + ( uml_object.inner_shapes[key].y - uml_object.y ) * height_scale_rate;
@@ -2732,6 +2735,17 @@ function EditorScreen(){
         }
         drawPolygon( context, polygon, line_color, false );
         break;
+
+      case "image":
+        var uml_image_context = this._getImageContextByHash( uml_object.image_hash );
+        if ( uml_image_context ) {
+          drawScaleImage( context, uml_image_context, base_x + _zoom( uml_object.inner_shapes[key].x ), base_y + _zoom( uml_object.inner_shapes[key].y ), _zoom( uml_object.inner_shapes[key].width ), _zoom( uml_object.inner_shapes[key].height ) );
+        }
+        // 画像未読み込み時はプレースホルダとして、選択中・関係先ハイライト時は強調色として枠を描く
+        if ( ! uml_image_context || base_color ) {
+          drawRect( context, base_x + _zoom( uml_object.inner_shapes[key].x ), base_y + _zoom( uml_object.inner_shapes[key].y ), _zoom( uml_object.inner_shapes[key].width ), _zoom( uml_object.inner_shapes[key].height ), line_color, false );
+        }
+        break;
       }
     }
 
@@ -3255,6 +3269,17 @@ function EditorScreen(){
         start: { x: uml_object.x,                     y: uml_object.y },
         end:   { x: uml_object.x + uml_object.width,  y: uml_object.y + uml_object.height },
         line_style: null,
+      };
+      break;
+
+    case "image":
+      shapes["image"] = {
+        id: "image",
+        type: "image",
+        x: uml_object.x,
+        y: uml_object.y,
+        width: uml_object.width,
+        height: uml_object.height,
       };
       break;
 
@@ -3884,15 +3909,27 @@ function EditorScreen(){
       uml_object.aspect_rate = 1.0;
       break;
 
+    case "image":
+      // 画像オブジェクト（ツールボタンからは生成せず、画像ファイルのドロップ・ペーストでのみ生成する）
+      //   画像バイナリの実体は save_data.images に置き、ハッシュIDで参照する。
+      //   サイズ・アスペクト比は配置時（_placeImageByDataUrl）に元画像から設定する。
+      uml_object.width  = 100;
+      uml_object.height = 100;
+      uml_object.is_keep_aspect_rate = true;
+      uml_object.aspect_rate = 1.0;
+      uml_object.image_hash = null;
+      break;
+
     }
 
     // 共通スタイル（色・線幅）の既定値を付与する（オブジェクトのtypeによって不要なものは付与しない）
-    //   lineColor / lineWidth : 線・枠を持たない text には付与しない
-    //   backgroundColor       : 塗り領域を持たない text / relation / 各種線・close には付与しない
+    //   lineColor / lineWidth : 線・枠を持たない text / image には付与しない
+    //   backgroundColor       : 塗り領域を持たない text / relation / 各種線・close / image には付与しない
     //   textColor             : 文字列を持つ（fontSizeを持つ）オブジェクトにのみ付与する
-    if ( "text" != type && "undefined" == typeof uml_object.params["lineColor"] ) uml_object.params["lineColor"] = "black";
-    if ( ! isIncludeArray( [ "text", "relation", "vertical_line", "horizontal_line", "close" ], type ) && "undefined" == typeof uml_object.params["backgroundColor"] ) uml_object.params["backgroundColor"] = "white";
-    if ( "text" != type && "undefined" == typeof uml_object.params["lineWidth"] ) uml_object.params["lineWidth"] = 1;
+    //   ※imageはパラメータを一切持たない（選択時のパラメータUIも表示しない）
+    if ( ! isIncludeArray( [ "text", "image" ], type ) && "undefined" == typeof uml_object.params["lineColor"] ) uml_object.params["lineColor"] = "black";
+    if ( ! isIncludeArray( [ "text", "relation", "vertical_line", "horizontal_line", "close", "image" ], type ) && "undefined" == typeof uml_object.params["backgroundColor"] ) uml_object.params["backgroundColor"] = "white";
+    if ( ! isIncludeArray( [ "text", "image" ], type ) && "undefined" == typeof uml_object.params["lineWidth"] ) uml_object.params["lineWidth"] = 1;
     if ( "undefined" != typeof uml_object.params["fontSize"] && "undefined" == typeof uml_object.params["textColor"] ) uml_object.params["textColor"] = "black";
 
     // 内部矩形の生成
@@ -3936,6 +3973,218 @@ function EditorScreen(){
     }.bind(this), 100 );
 
     return uml_object;
+  };
+
+  /*------------------------------------------------------------------------------
+    画像オブジェクト関連
+      画像バイナリ（MIMEエンコード＝data-url）は save_data.images にハッシュIDをキーに
+      1つだけ保持し、画像オブジェクトからはハッシュIDで参照する（同一画像の重複記録を防ぐ）。
+  ------------------------------------------------------------------------------*/
+
+  //--------------------------------------
+  // 画像バイナリ（data-url）から固有のハッシュIDを生成する
+  //--------------------------------------
+  EditorScreen.prototype._generateImageHash = function( data_url ){
+    return CryptoJS.SHA256( data_url ).toString( CryptoJS.enc.Hex );
+  };
+
+  //--------------------------------------
+  // 画像のdata-urlを配置可能な形式・サイズに正規化する
+  //   ・バイナリサイズが1MB以下、かつPDF出力（pdf-lib）が扱える形式（PNG/JPEG）ならそのまま
+  //   ・それ以外はPNGへ変換し、1MB以下になるまで解像度を縮小する
+  //   callback( data_url, width, height ) : 正規化できない場合は data_url = null で呼び出す
+  //--------------------------------------
+  EditorScreen.prototype._normalizeImageDataUrl = function( data_url, callback ){
+    var max_binary_size = 1024 * 1024; // 1MB
+
+    // base64部の文字数からバイナリサイズを概算する
+    var _getBinarySize = function( target_data_url ){
+      var base64_index = target_data_url.indexOf( "," ) + 1;
+      return Math.floor( ( target_data_url.length - base64_index ) * 3 / 4 );
+    };
+
+    var matched = ( "string" == typeof data_url ? data_url.match( /^data:(image\/[0-9a-z.+-]+);/i ) : null );
+    if ( ! matched ) {
+      callback( null );
+      return;
+    }
+    var mime_type = matched[1].toLowerCase();
+
+    var image_element = new Image();
+    image_element.onload = function(){
+      var width  = ( image_element.naturalWidth  || image_element.width );
+      var height = ( image_element.naturalHeight || image_element.height );
+      if ( ! width || ! height ) {
+        callback( null );
+        return;
+      }
+
+      // 1MB以下かつPDF出力可能な形式ならそのまま利用する
+      if ( _getBinarySize( data_url ) <= max_binary_size && isIncludeArray( [ "image/png", "image/jpeg" ], mime_type ) ) {
+        callback( data_url, width, height );
+        return;
+      }
+
+      // PNGへ変換し、1MB以下になるまで解像度を縮小する
+      var scale = 1.0;
+      for ( var i=0; i<10; i++ ) {
+        var canvas = createCanvas();
+        canvas.width  = Math.max( 1, Math.round( width * scale ) );
+        canvas.height = Math.max( 1, Math.round( height * scale ) );
+        canvas.getContext( "2d" ).drawImage( image_element, 0, 0, canvas.width, canvas.height );
+        var png_data_url = canvas.toDataURL( "image/png" );
+        var png_binary_size = _getBinarySize( png_data_url );
+        if ( png_binary_size <= max_binary_size ) {
+          callback( png_data_url, canvas.width, canvas.height );
+          return;
+        }
+        // 目標サイズとの比率から次の縮小率を決める（バイナリサイズは面積に概ね比例するため平方根で近似）
+        scale *= Math.min( 0.9, Math.sqrt( max_binary_size / png_binary_size ) );
+      }
+      callback( null );
+    };
+    image_element.onerror = function(){
+      callback( null );
+    };
+    image_element.src = data_url;
+  };
+
+  //--------------------------------------
+  // 画像のdata-urlから画像オブジェクトを生成して用紙に配置する
+  //   （画像ファイルのドロップ・OSクリップボードの画像ペーストの両方から利用する）
+  //--------------------------------------
+  EditorScreen.prototype._placeImageByDataUrl = function( data_url ){
+    this._normalizeImageDataUrl( data_url, function( normalized_data_url, image_width, image_height ){
+      if ( ! normalized_data_url ) {
+        alert("この画像を配置することはできません");
+        return;
+      }
+
+      // 画像バイナリはハッシュIDをキーに一元管理する（同一画像の重複登録を避ける）
+      var image_hash = this._generateImageHash( normalized_data_url );
+      if ( ! this.save_data.images[ image_hash ] ) {
+        this.save_data.images[ image_hash ] = {
+          data_url: normalized_data_url,
+          width: image_width,
+          height: image_height,
+        };
+      }
+
+      // 画像オブジェクトを生成（元画像のアスペクト比を維持し、大きすぎる画像は縮小した表示サイズで配置する）
+      var uml_object = this._createInitializedUmlObject( "image" );
+      var display_scale = Math.min( 1, 600 / Math.max( image_width, image_height ) );
+      uml_object.image_hash = image_hash;
+      uml_object.width  = Math.max( uml_object.min_width,  Math.round( image_width * display_scale ) );
+      uml_object.height = Math.max( uml_object.min_height, Math.round( image_height * display_scale ) );
+      uml_object.aspect_rate = uml_object.height / uml_object.width;
+      uml_object.inner_shapes = this._refreshInnerShape( uml_object, uml_object.type );
+
+      // 現在のスクロール位置を考慮した画面中央に配置する（ツールボタンからの生成と同じ位置決め）
+      var main_contents_element = this.findObjectByName( "main_contents" );
+      var main_contents_element_pos = {
+        x: main_contents_element.scrollLeft() - main_contents_element.style.padding[3],
+        y: main_contents_element.scrollTop() - main_contents_element.style.padding[0],
+      };
+      this._moveUmlObject(
+        uml_object,
+        ( Math.floor( (( main_contents_element.width - uml_object.width ) / 2 ) / this.grid_size ) * this.grid_size ) + main_contents_element_pos.x,
+        ( Math.floor( (( main_contents_element.height - uml_object.height ) / 2 ) / this.grid_size ) * this.grid_size ) + main_contents_element_pos.y
+      );
+
+      // オブジェクトを登録・選択状態にする
+      this.save_data.objects[ uml_object.id ] = uml_object;
+      this.save_data.priorities.push( uml_object.id );
+      this._selectUmlObjectByKey( uml_object.id );
+
+      // 紙サイズの修正
+      this._refreshPaperSize();
+      // データの記録
+      this.data_manager.setData( this.save_data );
+      // 再描画
+      this.screen_manager.requestDraw( this );
+    }.bind(this) );
+  };
+
+  //--------------------------------------
+  // ハッシュIDからCanvas描画用の画像コンテキストを取得する
+  //   未読み込みの画像は読み込みを開始してnullを返し、読み込み完了時に再描画を要求する
+  //--------------------------------------
+  EditorScreen.prototype._getImageContextByHash = function( image_hash ){
+    if ( ! image_hash ) return null;
+
+    var cache = this.uml_image_contexts[ image_hash ];
+    if ( cache ) return ( cache.is_loaded ? cache.image_context : null );
+
+    var image_data = ( this.save_data.images ? this.save_data.images[ image_hash ] : null );
+    if ( ! image_data ) return null;
+
+    // 読み込みを開始してキャッシュに登録する（drawScaleImageが扱える形式で保持する）
+    var image_element = new Image();
+    cache = this.uml_image_contexts[ image_hash ] = {
+      is_loaded: false,
+      image_context: {
+        element: image_element,
+        trim: { is_divided: false, offset_x: 0, offset_y: 0, width: image_data.width, height: image_data.height },
+      },
+    };
+    image_element.onload = function(){
+      cache.is_loaded = true;
+      cache.image_context.trim.width  = ( image_element.naturalWidth  || image_data.width );
+      cache.image_context.trim.height = ( image_element.naturalHeight || image_data.height );
+      this.screen_manager.requestDraw( this );
+    }.bind(this);
+    image_element.src = image_data.data_url;
+
+    return null;
+  };
+
+  //--------------------------------------
+  // どの画像オブジェクトからも参照されなくなった画像バイナリを保存データから消去する
+  //--------------------------------------
+  EditorScreen.prototype._collectGarbageImages = function(){
+    if ( ! this.save_data.images ) return;
+
+    // 全オブジェクト（グループの子孫を含む）から参照中のハッシュIDを収集する
+    var used_image_hashes = {};
+    this._seekSaveData( this.save_data.objects, function( uml_object ){
+      if ( "image" == uml_object.type && uml_object.image_hash ) used_image_hashes[ uml_object.image_hash ] = true;
+    } );
+
+    for ( var image_hash in this.save_data.images ) {
+      if ( ! used_image_hashes[ image_hash ] ) delete this.save_data.images[ image_hash ];
+    }
+  };
+
+  //--------------------------------------
+  // クリップボード転送用に、画像参照（ハッシュID）を画像バイナリの実体に展開したコピーを作る
+  //   クリップボードは別タブ・別ドキュメントにも貼り付けられるため、ハッシュID参照のままでは実体が失われる
+  //--------------------------------------
+  EditorScreen.prototype._buildClipboardUmlObject = function( root_uml_object ){
+    var copy_uml_object = JSON.parse( JSON.stringify( root_uml_object ) );
+    var _embedImage = function( uml_object ){
+      if ( "image" == uml_object.type && uml_object.image_hash && this.save_data.images[ uml_object.image_hash ] ) {
+        uml_object.image = JSON.parse( JSON.stringify( this.save_data.images[ uml_object.image_hash ] ) );
+      }
+      for ( var key in uml_object.children ) _embedImage( uml_object.children[key] );
+    }.bind(this);
+    _embedImage( copy_uml_object );
+    return copy_uml_object;
+  };
+
+  //--------------------------------------
+  // クリップボードから復元したオブジェクトの画像バイナリを保存データに登録し直し、ハッシュID参照へ戻す
+  //--------------------------------------
+  EditorScreen.prototype._restoreClipboardImages = function( uml_object ){
+    if ( "image" == uml_object.type && uml_object.image && uml_object.image.data_url ) {
+      // ハッシュIDは実体から再計算する（クリップボード由来のデータを無条件に信用しない）
+      var image_hash = this._generateImageHash( uml_object.image.data_url );
+      if ( ! this.save_data.images[ image_hash ] ) {
+        this.save_data.images[ image_hash ] = uml_object.image;
+      }
+      uml_object.image_hash = image_hash;
+      delete uml_object.image;
+    }
+    for ( var key in uml_object.children ) this._restoreClipboardImages( uml_object.children[key] );
   };
 
   //--------------------------------------
@@ -4044,6 +4293,10 @@ function EditorScreen(){
         }
       }
     }
+
+    // 参照が無くなった画像バイナリを保存データから消去する
+    // （選択解除に付随して編集履歴が保存されるため、その前に消去して孤児化した画像が履歴に残らない様にする）
+    this._collectGarbageImages();
 
     // 選択を初期化する
     this.select_uml_object_ids = [];  // _clearSelectedAllUmlObject()の前に先に配列を削除しておかないと、パラメータの適用・更新処理が削除されたオブジェクトに対して発生してしまう
@@ -5103,7 +5356,8 @@ function EditorScreen(){
       copy_targets.push( {
         key:        this.select_uml_object_ids[i],
         id:         root_uml_object.id,
-        uml_object: JSON.stringify( root_uml_object ),
+        // 画像オブジェクトはハッシュID参照ではなく画像バイナリの実体を含めてコピーする
+        uml_object: JSON.stringify( this._buildClipboardUmlObject( root_uml_object ) ),
         priority:   this.save_data.priorities.indexOf( root_uml_object.id ),
       } );
     }
@@ -5120,13 +5374,21 @@ function EditorScreen(){
     };
 
     // 仮想クリップボード（localStorage）に記録する
-    localStorage.setItem( this.application_name + "_clipboard", JSON.stringify( this.clipboard ) );
+    // （画像バイナリを含む大きなデータで容量超過が発生しても、メモリ上のクリップボードでのコピペは継続できる様にする）
+    try {
+      localStorage.setItem( this.application_name + "_clipboard", JSON.stringify( this.clipboard ) );
+    } catch( e ) {
+      localStorage.removeItem( this.application_name + "_clipboard" );
+    }
 
     // 新規にコピーしたので、ペースト基準位置をリセットする（次のクリックまでは従来のコピー元基準でカスケード）
     this.paste_base_position = null;
 
-    // クリップボードに転送する
-    //navigator.clipboard.writeText( JSON.stringify( this.clipboard ) ).then();
+    // OSクリップボードにも目印文字列を書き込む
+    // （ペースト時にOSクリップボードへ画像が残っていても、ツール内のコピーの方が新しいと判定できる様にする）
+    if ( navigator.clipboard && navigator.clipboard.writeText ) {
+      navigator.clipboard.writeText( this.application_name + "_clipboard" ).catch( function(){} );
+    }
   };
 
   //--------------------------------------
@@ -5264,6 +5526,8 @@ function EditorScreen(){
     for ( var i=0; i<this.clipboard.data.length; i++ ) {
       // 生成
       var uml_object = JSON.parse( this.clipboard.data[i].uml_object );
+      // コピー時に実体展開された画像バイナリを保存データに登録し直し、ハッシュID参照へ戻す
+      this._restoreClipboardImages( uml_object );
       // IDの再生成
       this._resetUmlbjectId( uml_object, known_ids, new_uml_object_ids );
       // 後で一括処理するために配列に退避
@@ -5358,13 +5622,36 @@ function EditorScreen(){
 
   //--------------------------------------
   // ショートカットキーからペースト
+  //   通常はcmd+vの既定動作で発火するpasteイベント（FileManager._onPaste）が
+  //   OSクリップボードの内容（画像/その他）を判定してペーストを処理する。
+  //   pasteイベントが発火しない環境向けのフォールバックとして、
+  //   一定時間pasteイベントが到着しなければ仮想クリップボードからペーストする。
   //--------------------------------------
   EditorScreen.prototype._pasteByShortCutKey = function( statuses ){
     if ( statuses.isShortCutDownKey( KEYCODE_SHORTCUT_PASTE ) ) {
-      this._pasteUmlObjectsByClipBoard();
+      // テキスト入力中（textarea等へのフォーカス中）はブラウザ標準のペーストに任せる
+      // （FileManager._onPasteと同条件。フォールバックを積むと文字と図形の二重ペーストになる）
+      var active_element = document.activeElement;
+      if ( active_element && ( "TEXTAREA" == active_element.tagName || "INPUT" == active_element.tagName ) ) return false;
+
+      this._cancelPasteFallback();
+      this.paste_fallback_timer = setTimeout( function(){
+        this.paste_fallback_timer = null;
+        this._pasteUmlObjectsByClipBoard();
+      }.bind(this), 300 );
       return true;
     }
     return false;
+  };
+
+  //--------------------------------------
+  // ペーストのフォールバックを解除する（pasteイベントが到着した時に呼ぶ）
+  //--------------------------------------
+  EditorScreen.prototype._cancelPasteFallback = function(){
+    if ( this.paste_fallback_timer ) {
+      clearTimeout( this.paste_fallback_timer );
+      this.paste_fallback_timer = null;
+    }
   };
 
   //--------------------------------------
@@ -5640,6 +5927,13 @@ function EditorScreen(){
           else if ( ! is_transparent_bg )                       drawPdfPolygon( context, polygon, fill_color, true );
         }
         drawPdfPolygon( context, polygon, line_color, false );
+        break;
+
+      case "image":
+        var image_data = ( this.save_data.images ? this.save_data.images[ uml_object.image_hash ] : null );
+        if ( image_data ) {
+          drawPdfImageDataUrl( context, image_data.data_url, base_x + uml_object.inner_shapes[key].x, base_y + uml_object.inner_shapes[key].y, uml_object.inner_shapes[key].width, uml_object.inner_shapes[key].height );
+        }
         break;
       }
     }
@@ -5957,6 +6251,11 @@ function EditorScreen(){
       }.bind( this ) );
     }
 
+    if ( 1.9 > data.version ) {
+      // 画像オブジェクト用の画像バイナリプールを追加する
+      data.images = data.images || {};
+    }
+
     data.version = this.current_version;
     return data;
   };
@@ -5986,6 +6285,7 @@ function EditorScreen(){
 
     if ( data && data.application_name == this.application_name ) {
       this.save_data = this._upgradeSaveData( data );
+      this.save_data.images = this.save_data.images || {};
 
       // データ管理を初期化
       this.data_manager.initialize( this.save_data );
@@ -6052,6 +6352,9 @@ function EditorScreen(){
     // ペーストの基準位置（クリック操作で更新される。nullの間は従来のコピー元基準でカスケード）
     this.paste_base_position = null;
 
+    // pasteイベントが発火しない環境向けの、ペーストのフォールバックタイマー
+    this.paste_fallback_timer = null;
+
     // グリッドサイズ
     this.grid_size = 10;
 
@@ -6103,7 +6406,7 @@ function EditorScreen(){
 
     // アプリケーション名
     this.application_name = "uml_draw_tool";
-    this.current_version = 1.8;
+    this.current_version = 1.9;
 
     // 画像管理を生成
     this.image_manager = ( new ImageManager() ).initialize(this);
@@ -6115,11 +6418,17 @@ function EditorScreen(){
       version: this.current_version,
       objects: {},
       priorities: [],
+      images: { /* 画像オブジェクトの画像バイナリのプール（同一画像はハッシュIDで1つに集約）
+        "image_hash": { data_url: "data:image/png;base64,...", width: 0, height: 0 },
+      */ },
       paper: {
         width: 1200,
         height: 848
       }
     }
+
+    // 画像オブジェクトのCanvas描画用キャッシュ（ハッシュID → 画像要素。内容由来のハッシュがキーのため無効化は不要）
+    this.uml_image_contexts = {};
 
     // ファイル管理を生成
     this.file_manager = ( new FileManager() ).initialize(this);
@@ -6622,6 +6931,7 @@ toggle_panel
         // ペースト
         case "filemenu_edit_paste":
         case "contextmenu_paste":
+          // メニューからのペーストは仮想クリップボードのみ対象（OSクリップボードの画像はcmd+vまたはドロップで配置する）
           this._pasteUmlObjectsByClipBoard();
           break;
 
@@ -6845,9 +7155,23 @@ toggle_panel
   };
 
   //--------------------------------------
-  // 画像ファイルのドロップ
+  // 画像ファイルのドロップ・ペースト
   //--------------------------------------
   EditorScreen.prototype.onOpenFileAsDataURL = function( file, data_url ){
+    // pasteイベント経由の場合はフォールバックのペーストを解除する（二重ペースト防止）
+    this._cancelPasteFallback();
+    // ドロップまたはペーストされた画像を画像オブジェクトとして用紙に配置する
+    this._placeImageByDataUrl( data_url );
+  };
+
+  //--------------------------------------
+  // 画像以外のペースト操作
+  //--------------------------------------
+  EditorScreen.prototype.onPasteWithoutImage = function(){
+    // pasteイベントが到着したのでフォールバックのペーストを解除する（二重ペースト防止）
+    this._cancelPasteFallback();
+    // 仮想クリップボード（localStorage）からペーストする
+    this._pasteUmlObjectsByClipBoard();
   };
 
   //--------------------------------------
