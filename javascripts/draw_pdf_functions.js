@@ -536,6 +536,47 @@ function drawPdfImage( context, image_context, x, y, scale ){
   } );
 }
 
+//--------------------------------------
+// data-url形式の画像（PNG/JPEG）を指定サイズで描画
+//--------------------------------------
+function drawPdfImageDataUrl( context, data_url, x, y, width, height ){
+  // PDF描画用関数の中には非同期な処理が存在するため、全て非同期化することで描画順序を関数呼び出し順となる様にする
+  _wrapAsyncPdfFunction( context, function( resolve, reject ){
+    var matched = ( "string" == typeof data_url ? data_url.match( /^data:(image\/[0-9a-z.+-]+);/i ) : null );
+    if ( ! matched ) {
+      resolve();
+      return;
+    }
+
+    // PDFに描画可能な画像形式にする（pdf-libはdata-url文字列を直接受け付ける）
+    var embed_loader;
+    if ( "image/png" == matched[1].toLowerCase() ) {
+      embed_loader = context.pdf_doc.embedPng( data_url );
+    }
+    else {
+      embed_loader = context.pdf_doc.embedJpg( data_url );
+    }
+
+    embed_loader.then( function( pdf_image ){
+      var page = _getPdfPage( context );
+      var pos = _getPdfPosition( context, { x:x, y:y }, height );
+
+      page.drawImage( pdf_image, {
+        x: pos.x,
+        y: pos.y,
+        width:  width,
+        height: height,
+        opacity: context.params.opacity,
+      });
+
+      resolve();
+    } ).catch( function(){
+      // 埋め込みに失敗した画像は描画をスキップする（PDF生成全体は継続する）
+      resolve();
+    } );
+  } );
+}
+
 /*------------------------------------------------------------------------------
   Private functions
 ------------------------------------------------------------------------------*/

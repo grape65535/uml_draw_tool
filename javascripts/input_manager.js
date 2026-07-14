@@ -592,12 +592,18 @@ function InputManager(){
 
       // ショートカット系を押下した時には専用のキーコードを記録
       switch ( keycode ) {
+      // ペースト（cmd+v）はブラウザ標準のpasteイベント（FileManager._onPaste）で処理するため、
+      // ショートカットの記録のみ行い、既定動作はキャンセルしない（キャンセルするとpasteイベントが発火しない）。
+      // 記録したショートカットは、pasteイベントが発火しない環境向けのフォールバック判定に使う。
+      case KEYCODE_V:
+        this._writePressStatus( KEYCODE_SHORTCUT_BASE + keycode, true );
+        break;
+
       case KEYCODE_A:
       case KEYCODE_S:
       case KEYCODE_Z:
       case KEYCODE_X:
       case KEYCODE_C:
-      case KEYCODE_V:
       case KEYCODE_F:
       case KEYCODE_G:
       case KEYCODE_OPEN_BRACKET:
@@ -615,6 +621,11 @@ function InputManager(){
     }
 
     this.listener.onInput( "on_key_down", event );
+
+    // ペースト（cmd/ctrl + v）はブラウザ標準のpasteイベントを発火させるため、既定動作をキャンセルしない
+    // （jQueryハンドラのreturn falseはpreventDefaultを行うため、ここで抜ける）
+    if ( KEYCODE_V == keycode && ( event.metaKey || event.ctrlKey || ( event.originalEvent && ( event.originalEvent.metaKey || event.originalEvent.ctrlKey ) ) ) ) return;
+
     return false;
   }.bind(this);
 
