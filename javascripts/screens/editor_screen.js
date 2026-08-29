@@ -3953,10 +3953,12 @@ function EditorScreen(){
       x: main_contents_element.scrollLeft() - main_contents_element.style.padding[3],
       y: main_contents_element.scrollTop() - main_contents_element.style.padding[0],
     };
+    // スクロール位置は端スクロール（7px刻み）でグリッド非整列になり得るため、
+    // スクロール位置を加算した最終座標をグリッドへ吸着させる（部分吸着だと生成位置がグリッドからズレる）。
     this._moveUmlObject(
       uml_object,
-      ( Math.floor( (( main_contents_element.width - uml_object.width ) / 2 ) / this.grid_size ) * this.grid_size ) + main_contents_element_pos.x,
-      ( Math.floor( (( main_contents_element.height - uml_object.height ) / 2 ) / this.grid_size ) * this.grid_size ) + main_contents_element_pos.y
+      Math.floor( ( (( main_contents_element.width - uml_object.width ) / 2 ) + main_contents_element_pos.x ) / this.grid_size ) * this.grid_size,
+      Math.floor( ( (( main_contents_element.height - uml_object.height ) / 2 ) + main_contents_element_pos.y ) / this.grid_size ) * this.grid_size
     );
 
     // オブジェクトを登録・選択状態にする
@@ -4087,10 +4089,12 @@ function EditorScreen(){
         x: main_contents_element.scrollLeft() - main_contents_element.style.padding[3],
         y: main_contents_element.scrollTop() - main_contents_element.style.padding[0],
       };
+      // スクロール位置は端スクロール（7px刻み）でグリッド非整列になり得るため、
+      // スクロール位置を加算した最終座標をグリッドへ吸着させる（部分吸着だと生成位置がグリッドからズレる）。
       this._moveUmlObject(
         uml_object,
-        ( Math.floor( (( main_contents_element.width - uml_object.width ) / 2 ) / this.grid_size ) * this.grid_size ) + main_contents_element_pos.x,
-        ( Math.floor( (( main_contents_element.height - uml_object.height ) / 2 ) / this.grid_size ) * this.grid_size ) + main_contents_element_pos.y
+        Math.floor( ( (( main_contents_element.width - uml_object.width ) / 2 ) + main_contents_element_pos.x ) / this.grid_size ) * this.grid_size,
+        Math.floor( ( (( main_contents_element.height - uml_object.height ) / 2 ) + main_contents_element_pos.y ) / this.grid_size ) * this.grid_size
       );
 
       // オブジェクトを登録・選択状態にする
@@ -5093,6 +5097,11 @@ function EditorScreen(){
           cursor_position.y = aspect_start_y + ( move_amount_x * drag_starting_data.toggle.owner.aspect_rate );
           break;
         }
+        // 従属軸（アスペクト比で算出したY）をグリッドへ吸着させる。
+        //   move_amount_x（10の倍数）× aspect_rate は10の倍数にならない場合があり（例: actor=2.4なら10×2.4=24）、
+        //   そのままだとY座標や高さがグリッドからズレる。グリッド整列を優先し、アスペクト比は最も近い格子に丸める（近似）。
+        //   （aspect_rate=1.0の図形は 10×1.0=10 で元々整列するため影響なし）
+        cursor_position.y = Math.round( cursor_position.y / this.grid_size ) * this.grid_size;
       }
 
       // オブジェクトの変形
@@ -5248,15 +5257,16 @@ function EditorScreen(){
       var drag_starting_data = statuses.loadDraggingTemporaryData( KEYCODE_CURSOR );
       if ( ! drag_starting_data || "move" != drag_starting_data.type ) return false;
 
-      // 移動量を計算
+      // 生の移動量を計算
       var move_amount_x = cursor_position.x - drag_starting_data.drag_start_cursor_position.x;
       var move_amount_y = cursor_position.y - drag_starting_data.drag_start_cursor_position.y;
 
-      // コントロールキー（またはコマンドキー）押下してなければ、10ピクセル単位での移動にする
-      if ( ! statuses.isPressKey( KEYCODE_CTRL ) && ! statuses.isPressKey( KEYCODE_COMMAND ) ) {
-        move_amount_x = Math.floor( ( move_amount_x / this.grid_size ) ) * this.grid_size;
-        move_amount_y = Math.floor( ( move_amount_y / this.grid_size ) ) * this.grid_size;
-      }
+      // コントロールキー（またはコマンドキー）押下してなければグリッド（10px）単位での移動にする
+      var is_grid_move = ( ! statuses.isPressKey( KEYCODE_CTRL ) && ! statuses.isPressKey( KEYCODE_COMMAND ) );
+
+      // 関係線の差分移動用のグリッド単位移動量（差分ベースで移動するため移動量自体を丸める）
+      var grid_move_amount_x = is_grid_move ? Math.floor( move_amount_x / this.grid_size ) * this.grid_size : move_amount_x;
+      var grid_move_amount_y = is_grid_move ? Math.floor( move_amount_y / this.grid_size ) * this.grid_size : move_amount_y;
 
       // 選択中のオブジェクト（実体）を移動する
       var selected_uml_objects = this._selectedUmlObjects();
@@ -5266,11 +5276,17 @@ function EditorScreen(){
         if ( ! frag_start_pos ) continue;
 
         if ( "relation" != root_uml_object.type ) {
-          this._moveUmlObject(
-            root_uml_object,
-            frag_start_pos.x + move_amount_x,
-            frag_start_pos.y + move_amount_y
-          );
+          // 移動量ではなく「最終位置」をグリッドへ吸着させる。
+          //   移動量だけを丸める方式だと開始位置のグリッド非整列（CTRL移動で生じた端数）が保存されてしまうため、
+          //   通常移動（CTRL非押下）では最終位置を吸着させ、グリッド非整列の図形もグリッドへ戻す。
+          //   （グループも基点を吸着＝子は一律の差分で移動するため、CTRL移動で一律にずれた子もまとめてグリッドへ戻る）
+          var target_x = frag_start_pos.x + move_amount_x;
+          var target_y = frag_start_pos.y + move_amount_y;
+          if ( is_grid_move ) {
+            target_x = Math.floor( target_x / this.grid_size ) * this.grid_size;
+            target_y = Math.floor( target_y / this.grid_size ) * this.grid_size;
+          }
+          this._moveUmlObject( root_uml_object, target_x, target_y );
         }
         else {
           // 関係線がが他オブジェクトとリレーションしている場合に、オブジェクトの基点座標は関係先の移動に伴って自動補正されてしまい、
@@ -5278,11 +5294,11 @@ function EditorScreen(){
           // そこで、関係線に限っては前回ドラッグ時からの移動差分だけ関係性の座標移動させる
           this._translateUmlObject(
             root_uml_object,
-            move_amount_x - frag_start_pos.x,
-            move_amount_y - frag_start_pos.y
+            grid_move_amount_x - frag_start_pos.x,
+            grid_move_amount_y - frag_start_pos.y
           );
-          frag_start_pos.x = move_amount_x;
-          frag_start_pos.y = move_amount_y;
+          frag_start_pos.x = grid_move_amount_x;
+          frag_start_pos.y = grid_move_amount_y;
 
           // 内部線からUMLオブジェクト矩形を正規化する
           this._normalizationUmlObjectSizeByInnerLine( root_uml_object );
