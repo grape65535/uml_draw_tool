@@ -1162,6 +1162,8 @@ function EditorScreen(){
   // オブジェクトのパラメータを再帰的に設定する
   //--------------------------------------
   EditorScreen.prototype._setUmlObjectParams = function( uml_object, params ){
+    // オブジェクトが既に持つパラメータのみを走査するため、そのパラメータを持たないオブジェクトには反映されない。
+    // （複数選択のパラメータ表示を論理和にしても、編集は該当パラメータを持つオブジェクトにだけ反映される根拠）
     for ( var key in uml_object.params ) {
       // オブジェクトにもパラメータにも同じキーが存在する
       if ( "undefined" != typeof params[key] ) {
@@ -1258,7 +1260,7 @@ function EditorScreen(){
   //--------------------------------------
   EditorScreen.prototype._refreshSelectedUmlObjectParams = function(){
     // 選択を末端（グループの子孫まで展開したリーフ）のオブジェクト単位で収集する。
-    // グループを選択した場合は、その構成要素すべてを個別に対象とする（＝論理積を取るため）。
+    // グループを選択した場合は、その構成要素すべてを個別に対象とする（＝論理和を取るため）。
     // グループ内の特定オブジェクトを選択（ドリルイン）した場合は、そのオブジェクトのみが対象となる。
     var leaf_uml_objects = this._selectedDescendantUmlObjects();
     var params_list = [];
@@ -1266,18 +1268,18 @@ function EditorScreen(){
       params_list.push( leaf_uml_objects[i].params );
     }
 
-    // 全ての対象オブジェクトに共通して存在するパラメータ（論理積）だけを対象とする。
-    // 値が全オブジェクトで一致すればその値、異なる場合はnull（未選択表示）とする。
+    // 選択オブジェクトのいずれかが持つパラメータ（論理和）を対象とする。
+    // 値は、そのパラメータを持つオブジェクト間で一致すればその値、異なる場合はnull（未選択表示）とする。
+    // （編集時は、そのパラメータを実際に持つオブジェクトにだけ反映される＝_setUmlObjectParams が担保する）
     var params = {};
-    if ( 0 < params_list.length ) {
-      for ( var key in params_list[0] ) {
-        var is_common = true;
-        var value = params_list[0][ key ];
-        for ( var i=1; i<params_list.length; i++ ) {
-          if ( ! params_list[i].hasOwnProperty( key ) ) { is_common = false; break; }
-          if ( value != params_list[i][ key ] ) value = null;
+    for ( var i=0; i<params_list.length; i++ ) {
+      for ( var key in params_list[i] ) {
+        if ( ! params.hasOwnProperty( key ) ) {
+          params[ key ] = params_list[i][ key ];
         }
-        if ( is_common ) params[ key ] = value;
+        else if ( params[ key ] != params_list[i][ key ] ) {
+          params[ key ] = null;
+        }
       }
     }
 
