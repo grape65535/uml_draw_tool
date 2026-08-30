@@ -3300,6 +3300,28 @@ function EditorScreen(){
   };
 
   //--------------------------------------
+  // アスペクト比固定オブジェクトの最小サイズを比率対応にする
+  //   最小サイズを幅・高さとも一律（例: 10×10）にすると、縮小しきった時にアスペクト比が崩れ（例: actorが正方形化）、
+  //   そこから再拡大した際に図形が崩れる。短い方の軸をグリッド基準（10px）に、長い方をアスペクト比で拡大した値を最小とする。
+  //   （aspect_rate=height/width。aspect_rate=1.0 の図形は 10×10 のまま＝影響なし）
+  //--------------------------------------
+  EditorScreen.prototype._updateAspectRateMinSize = function( uml_object ){
+    if ( ! uml_object.is_keep_aspect_rate ) return;
+    var base = ( this.grid_size || 10 );
+    var aspect_rate = uml_object.aspect_rate || 1;
+    if ( aspect_rate >= 1 ) {
+      // 縦長（高さ≧幅）: 幅が短い軸
+      uml_object.min_width  = base;
+      uml_object.min_height = base * aspect_rate;
+    }
+    else {
+      // 横長（幅＞高さ）: 高さが短い軸
+      uml_object.min_height = base;
+      uml_object.min_width  = base / aspect_rate;
+    }
+  };
+
+  //--------------------------------------
   // UMLオブジェクトの生成
   //--------------------------------------
   EditorScreen.prototype._createInitializedUmlObject = function( type ){
@@ -3934,6 +3956,9 @@ function EditorScreen(){
     if ( ! isIncludeArray( [ "text", "image" ], type ) && "undefined" == typeof uml_object.params["lineWidth"] ) uml_object.params["lineWidth"] = 1;
     if ( "undefined" != typeof uml_object.params["fontSize"] && "undefined" == typeof uml_object.params["textColor"] ) uml_object.params["textColor"] = "black";
 
+    // アスペクト比固定オブジェクトは最小サイズを比率対応にする（縮小→再拡大時の崩れを防ぐ）
+    this._updateAspectRateMinSize( uml_object );
+
     // 内部矩形の生成
     uml_object.inner_shapes = this._refreshInnerShape( uml_object, type );
 
@@ -4081,6 +4106,8 @@ function EditorScreen(){
       uml_object.width  = Math.max( uml_object.min_width,  Math.round( image_width * display_scale ) );
       uml_object.height = Math.max( uml_object.min_height, Math.round( image_height * display_scale ) );
       uml_object.aspect_rate = uml_object.height / uml_object.width;
+      // 実アスペクト比が確定してから最小サイズを比率対応にする（生成時点では既定の1.0だったため）
+      this._updateAspectRateMinSize( uml_object );
       uml_object.inner_shapes = this._refreshInnerShape( uml_object, uml_object.type );
 
       // 現在のスクロール位置を考慮した画面中央に配置する（ツールボタンからの生成と同じ位置決め）
@@ -5066,42 +5093,43 @@ function EditorScreen(){
 
       // アスペクト比の維持
       if ( drag_starting_data.toggle.owner.is_keep_aspect_rate ) {
-        // 基準となる開始位置が生座標（グリッド未吸着）のままだと、移動量やアスペクト比から算出するY座標が
-        // 10px格子からずれ、10px未満のサイズ変更になってしまう。基準もグリッド（cursor_positionと同じ吸着）へ揃える。
+        var aspect_owner = drag_starting_data.toggle.owner;
+        var aspect_rate = aspect_owner.aspect_rate || 1;
+        var toggle_type = drag_starting_data.toggle.type;
+
+        // このコーナーのリサイズで動かない（固定される）辺。リサイズ中もこれらの値は不変。
+        var fixed_left   = aspect_owner.x;
+        var fixed_right  = aspect_owner.x + aspect_owner.width;
+        var fixed_top    = aspect_owner.y;
+        var fixed_bottom = aspect_owner.y + aspect_owner.height;
+
+        // 主軸（幅）はグリッド基準でドラッグから決める。従来同様、上下方向のドラッグ量が大きい時は
+        // その量を主軸（幅）の変化量に読み替える（縦長図形を縦ドラッグで変形できるようにするため）。
         var aspect_start_x = Math.floor( start_cursor_position.x / this.grid_size ) * this.grid_size;
         var aspect_start_y = Math.floor( start_cursor_position.y / this.grid_size ) * this.grid_size;
         var move_amount_x = cursor_position.x - aspect_start_x;
         var move_amount_y = cursor_position.y - aspect_start_y;
-        switch ( drag_starting_data.toggle.type ) {
-        case "top-left":
-          if ( -move_amount_x < -move_amount_y ) move_amount_x = move_amount_y;
-          cursor_position.x = aspect_start_x + move_amount_x;
-          cursor_position.y = aspect_start_y + ( move_amount_x * drag_starting_data.toggle.owner.aspect_rate );
-          break;
-
-        case "top-right":
-          if ( move_amount_x < -move_amount_y ) move_amount_x = -move_amount_y;
-          cursor_position.x = aspect_start_x + move_amount_x;
-          cursor_position.y = aspect_start_y - ( move_amount_x * drag_starting_data.toggle.owner.aspect_rate );
-          break;
-
-        case "bottom-left":
-          if ( -move_amount_x < move_amount_y ) move_amount_x = -move_amount_y;
-          cursor_position.x = aspect_start_x + move_amount_x;
-          cursor_position.y = aspect_start_y - ( move_amount_x * drag_starting_data.toggle.owner.aspect_rate );
-          break;
-
-        case "bottom-right":
-          if ( move_amount_x < move_amount_y ) move_amount_x = move_amount_y;
-          cursor_position.x = aspect_start_x + move_amount_x;
-          cursor_position.y = aspect_start_y + ( move_amount_x * drag_starting_data.toggle.owner.aspect_rate );
-          break;
+        switch ( toggle_type ) {
+        case "top-left":     if ( -move_amount_x < -move_amount_y ) move_amount_x = move_amount_y;  break;
+        case "top-right":    if (  move_amount_x < -move_amount_y ) move_amount_x = -move_amount_y; break;
+        case "bottom-left":  if ( -move_amount_x <  move_amount_y ) move_amount_x = -move_amount_y; break;
+        case "bottom-right": if (  move_amount_x <  move_amount_y ) move_amount_x = move_amount_y;  break;
         }
-        // 従属軸（アスペクト比で算出したY）をグリッドへ吸着させる。
-        //   move_amount_x（10の倍数）× aspect_rate は10の倍数にならない場合があり（例: actor=2.4なら10×2.4=24）、
-        //   そのままだとY座標や高さがグリッドからズレる。グリッド整列を優先し、アスペクト比は最も近い格子に丸める（近似）。
-        //   （aspect_rate=1.0の図形は 10×1.0=10 で元々整列するため影響なし）
-        cursor_position.y = Math.round( cursor_position.y / this.grid_size ) * this.grid_size;
+        cursor_position.x = aspect_start_x + move_amount_x;
+
+        // 動くX辺の位置から新しい幅を求め、高さ = 幅 × アスペクト比を「厳密に」算出する（丸めない）。
+        //   従属軸（高さ）をグリッドへ丸めると比率が崩れる（例: 幅50→高さ120だが幅40→96が90等に丸められ比率がずれ、
+        //   最小化→復元でアスペクト比が変わってしまう）。アスペクト比維持を優先し、従属軸は厳密値とする。
+        //   主軸（幅）と、下辺・右辺が動くコーナーの基点はグリッド整列を保つ。
+        var new_width = isIncludeArray( [ "top-left", "bottom-left" ], toggle_type )
+          ? ( fixed_right - cursor_position.x )   // 左辺が動く
+          : ( cursor_position.x - fixed_left );   // 右辺が動く
+        var new_height = new_width * aspect_rate;
+
+        // 従属軸カーソルYを、固定されるY辺から厳密な高さで逆算する
+        cursor_position.y = isIncludeArray( [ "top-left", "top-right" ], toggle_type )
+          ? ( fixed_bottom - new_height )   // 上辺が動く（下辺固定）
+          : ( fixed_top + new_height );     // 下辺が動く（上辺固定）
       }
 
       // オブジェクトの変形
@@ -6304,6 +6332,12 @@ function EditorScreen(){
     if ( data && data.application_name == this.application_name ) {
       this.save_data = this._upgradeSaveData( data );
       this.save_data.images = this.save_data.images || {};
+
+      // アスペクト比固定オブジェクトの最小サイズを比率対応へ補正する（旧データは min 10×10 固定で縮小→再拡大時に崩れるため）。
+      // aspect_rate から毎回算出する冪等な処理のため、バージョンに依らず読み込み時に一律実行する。
+      this._seekSaveData( this.save_data.objects, function( uml_object ){
+        this._updateAspectRateMinSize( uml_object );
+      }.bind( this ) );
 
       // データ管理を初期化
       this.data_manager.initialize( this.save_data );
