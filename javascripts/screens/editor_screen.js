@@ -2267,6 +2267,29 @@ function EditorScreen(){
   };
 
   //--------------------------------------
+  // 指定UMLオブジェクトの「現在の」包含矩形を求める（紙上のオフセット座標）
+  //   グループの自身の矩形はドラッグ移動中に一時的に 0 化されるため、
+  //   子の矩形から再帰的に union を取って求める。単一図形は自身の矩形を返す。
+  //--------------------------------------
+  EditorScreen.prototype._computeGuideBoundingRect = function( uml_object ){
+    if ( ! uml_object ) return null;
+    if ( "group" == uml_object.type ) {
+      var left_x = null, top_y = null, right_x = null, bottom_y = null;
+      for ( var key in uml_object.children ) {
+        var child_rect = this._computeGuideBoundingRect( uml_object.children[key] );
+        if ( ! child_rect ) continue;
+        if ( null == left_x   || child_rect.x                     < left_x   ) left_x   = child_rect.x;
+        if ( null == top_y    || child_rect.y                     < top_y    ) top_y    = child_rect.y;
+        if ( null == right_x  || child_rect.x + child_rect.width  > right_x  ) right_x  = child_rect.x + child_rect.width;
+        if ( null == bottom_y || child_rect.y + child_rect.height > bottom_y ) bottom_y = child_rect.y + child_rect.height;
+      }
+      if ( null == left_x ) return null;
+      return { x: left_x, y: top_y, width: right_x - left_x, height: bottom_y - top_y };
+    }
+    return { x: uml_object.x, y: uml_object.y, width: uml_object.width, height: uml_object.height };
+  };
+
+  //--------------------------------------
   // 現在選択中のUMLオブジェクトをグループ化する
   //--------------------------------------
   EditorScreen.prototype._groupSelectedUmlObjects = function(){
@@ -5043,6 +5066,9 @@ function EditorScreen(){
       // 前回のドラッグ情報を消去する
       statuses.storeDraggingTemporaryData( KEYCODE_CURSOR, null );
 
+      // 整列ガイド線の対象は一旦解除（サイズ変更トグルを掴んだ時のみ再設定する）
+      this.drag_guide_target_id = null;
+
       // ドラッグ開始位置を紙の左上からの相対位置に変換
       var cursor_position = this._getPaperOffsetPosition( statuses.getDragPosition() );
 
@@ -5053,6 +5079,13 @@ function EditorScreen(){
         && ( this.draggable_toggles[i].y - 4 <= cursor_position.y && cursor_position.y <= this.draggable_toggles[i].y + 8 )
         ) {
           statuses.storeDraggingTemporaryData( KEYCODE_CURSOR, { type:"toggle", toggle: this.draggable_toggles[i], start_cursor_position: cursor_position } );
+
+          // サイズ変更（矩形四辺・四隅）トグルの時だけ整列ガイド線の対象にする。
+          //   関係線の始点・終点・中継点（inner-line系）はサイズ変更ではないので対象外。
+          var grabbed_toggle = this.draggable_toggles[i];
+          if ( grabbed_toggle.owner && 0 != grabbed_toggle.type.indexOf( "inner-line" ) ) {
+            this.drag_guide_target_id = grabbed_toggle.owner.id;
+          }
 
           // 選択オブジェクト編集用のトグルを一旦削除
           this.draggable_toggles = [];
@@ -5150,6 +5183,9 @@ function EditorScreen(){
       var drag_starting_data = statuses.loadDraggingTemporaryData( KEYCODE_CURSOR );
       if ( ! drag_starting_data || "toggle" != drag_starting_data.type ) return false;
 
+      // 整列ガイド線を解除
+      this.drag_guide_target_id = null;
+
       // 内部矩形の再生成
       drag_starting_data.toggle.owner.inner_shapes = this._refreshInnerShape( drag_starting_data.toggle.owner, drag_starting_data.toggle.owner.type );
       // リレーション先の内部矩形の再生成
@@ -5182,6 +5218,9 @@ function EditorScreen(){
     if ( statuses.isDrag( KEYCODE_CURSOR ) ) {
       // 前回のドラッグ情報を消去する
       statuses.storeDraggingTemporaryData( KEYCODE_CURSOR, null );
+
+      // 整列ガイド線の対象は一旦解除（掴んだ図形が確定した時に再設定する）
+      this.drag_guide_target_id = null;
 
       // 選択オブジェクト編集用のトグルを一旦削除
       this.draggable_toggles = [];
@@ -5259,6 +5298,20 @@ function EditorScreen(){
                   x: 0,
                   y: 0
                 };
+              }
+            }
+
+            // 整列ガイド線の対象＝「掴んだ図形」を決める。
+            //   掴んだ位置のキー（uml_object_key）を包含する選択オブジェクトを対象とする。
+            //   ・グループ全体選択　　→ グループが対象（グループ全体の包含矩形）
+            //   ・ドリルイン　　　　　→ 当該の子図形が対象
+            //   ・独立した複数選択　　→ 掴んだ座標上の図形が対象
+            //   関係線（relation）は整列の目安対象にしない。
+            var guide_key_segments = uml_object_key.split( "." );
+            for ( var gi=0; gi<selected_uml_objects.length; gi++ ) {
+              if ( isIncludeArray( guide_key_segments, selected_uml_objects[gi].id ) ) {
+                if ( "relation" != selected_uml_objects[gi].type ) this.drag_guide_target_id = selected_uml_objects[gi].id;
+                break;
               }
             }
 
@@ -5349,6 +5402,9 @@ function EditorScreen(){
     }
     // ドロップ
     else if ( statuses.isDrop( KEYCODE_CURSOR ) ) {
+      // 整列ガイド線を解除
+      this.drag_guide_target_id = null;
+
       // 選択中のオブジェクト（実体）の移動を確定する
       var selected_uml_objects = this._selectedUmlObjects();
       for ( var i=0; i<selected_uml_objects.length; i++ ) {
@@ -6385,6 +6441,12 @@ function EditorScreen(){
     // 範囲選択の描画用矩形
     this.dragging_rect = null;
 
+    // ドラッグ中の整列ガイド線（#型）の対象オブジェクトID。
+    //   移動またはサイズ変更のドラッグ中だけ設定し、ドロップで解除する。
+    //   グループを掴んだ時はグループ全体の包含矩形、単一・ドリルイン・独立複数選択の時は
+    //   掴んだ図形の包含矩形の四辺を延長した目安線を最前面に描画する用途。
+    this.drag_guide_target_id = null;
+
     // 入力中のオブジェクト
     this.inputting_uml_object = null;
     this.inputting_uml_object_shape = null;
@@ -6776,6 +6838,43 @@ toggle_panel
               false
             );
             setLineDash( context, [] );
+          }
+
+          // ドラッグ中の整列ガイド線（#型）を最前面に描画する。
+          //   掴んだ図形（またはグループ全体）を包含する矩形の四辺を、可視の描画範囲外まで延長した
+          //   薄いグレーの目安線。他の配置済み図形と水平・垂直位置を揃える用途。
+          //   ただし図形の四辺上（矩形の輪郭部分）には描画しない＝各線は矩形をまたぐ区間を空ける。
+          if ( this.drag_guide_target_id ) {
+            var guide_object = this._findUmlObjectById( this.drag_guide_target_id );
+            var guide_rect = this._computeGuideBoundingRect( guide_object );
+            if ( guide_rect ) {
+              // lineColor 等で使うグレーよりも薄い色
+              var guide_color = "rgb(214,214,214)";
+
+              // クリップ領域（＝可視の描画範囲）の端まで線を延ばす
+              var clip_left   = main_pos.x;
+              var clip_top    = main_pos.y;
+              var clip_right  = main_pos.x + main_content_element.width;
+              var clip_bottom = main_pos.y + main_content_element.height;
+
+              // 掴んだ図形の四辺のスクリーン座標
+              var rect_left   = base_pos.x + ( guide_rect.x * this.zoom_rate );
+              var rect_right  = base_pos.x + ( ( guide_rect.x + guide_rect.width )  * this.zoom_rate );
+              var rect_top    = base_pos.y + ( guide_rect.y * this.zoom_rate );
+              var rect_bottom = base_pos.y + ( ( guide_rect.y + guide_rect.height ) * this.zoom_rate );
+
+              setLineDash( context, [] );
+              // 縦線2本（左辺・右辺の延長）: 図形の縦の四辺上（top〜bottom）は描かず、上下へ延長する
+              drawLine( context, rect_left,  clip_top,    rect_left,  rect_top,    guide_color );
+              drawLine( context, rect_left,  rect_bottom, rect_left,  clip_bottom, guide_color );
+              drawLine( context, rect_right, clip_top,    rect_right, rect_top,    guide_color );
+              drawLine( context, rect_right, rect_bottom, rect_right, clip_bottom, guide_color );
+              // 横線2本（上辺・下辺の延長）: 図形の横の四辺上（left〜right）は描かず、左右へ延長する
+              drawLine( context, clip_left,  rect_top,    rect_left,  rect_top,    guide_color );
+              drawLine( context, rect_right, rect_top,    clip_right, rect_top,    guide_color );
+              drawLine( context, clip_left,  rect_bottom, rect_left,  rect_bottom, guide_color );
+              drawLine( context, rect_right, rect_bottom, clip_right, rect_bottom, guide_color );
+            }
           }
 
         }.bind(this)
