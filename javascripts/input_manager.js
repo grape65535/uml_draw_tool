@@ -56,6 +56,7 @@ function InputManager(){
       KEYCODE_SHORTCUT_CUT,  KEYCODE_SHORTCUT_COPY,  KEYCODE_SHORTCUT_PASTE,   KEYCODE_SHORTCUT_FIND,
       KEYCODE_SHORTCUT_FIND_NEXT, KEYCODE_SHORTCUT_FIND_PREV,
       KEYCODE_SHORTCUT_MOVE_LOW,  KEYCODE_SHORTCUT_MOVE_HIGH,  KEYCODE_SHORTCUT_MOVE_LOWEST,  KEYCODE_SHORTCUT_MOVE_HIGHEST,
+      KEYCODE_SHORTCUT_SET_DEFAULT,
     ].forEach( function( keycode ){
       this.prev.keys[ keycode ] = { press:false, time:0 };
     }.bind(this) );
@@ -604,6 +605,7 @@ function InputManager(){
       case KEYCODE_Z:
       case KEYCODE_X:
       case KEYCODE_C:
+      case KEYCODE_D:
       case KEYCODE_F:
       case KEYCODE_G:
       case KEYCODE_OPEN_BRACKET:
@@ -1239,6 +1241,7 @@ var KEYCODE_SHORTCUT_MOVE_LOW  = KEYCODE_SHORTCUT_BASE + KEYCODE_OPEN_BRACKET;  
 var KEYCODE_SHORTCUT_MOVE_HIGH = KEYCODE_SHORTCUT_BASE + KEYCODE_CLOSE_BRACKET;       // cmd + ]
 var KEYCODE_SHORTCUT_MOVE_LOWEST  = KEYCODE_SHORTCUT_SHIFT_BASE + KEYCODE_OPEN_BRACKET;  // cmd + shift + [
 var KEYCODE_SHORTCUT_MOVE_HIGHEST = KEYCODE_SHORTCUT_SHIFT_BASE + KEYCODE_CLOSE_BRACKET; // cmd + shift + ]
+var KEYCODE_SHORTCUT_SET_DEFAULT  = KEYCODE_SHORTCUT_BASE + KEYCODE_D;  // cmd + d
 
 /*------------------------------------------------------------------------------
   InputManagerからのイベント処理を行うためのインタフェース

@@ -2419,6 +2419,62 @@ function EditorScreen(){
   }
 
   /*------------------------------------------------------------------------------
+    パラメータ初期値の上書き（set as default params）
+      選択中の図形のパラメータ（fontSize/lineColor 等）を、その図形「種別」の初期値として
+      記憶し、以後パレットから新規配置する同種別の図形へ適用する。
+      ・単一の図形選択時のみ機能（複数選択・グループ選択では機能しない）。
+        ただしグループ内の特定図形をドリルインで単一選択している時は機能する。
+      ・種別ごとに独立して記憶（text_box を変えても object へは影響しない）。
+      ・コピペ動作やJSON/PDF保存には影響しない。メモリ上のみ（ブラウザを閉じると忘れる）。
+  ------------------------------------------------------------------------------*/
+
+  //--------------------------------------
+  // 生成した図形へ、記憶済みの種別ごと初期値を上書き適用する（パレット新規配置時のみ呼ぶ）
+  //--------------------------------------
+  EditorScreen.prototype._applyDefaultParamsOverride = function( uml_object ){
+    if ( ! uml_object ) return;
+    var defaults = this.default_params_by_type[ uml_object.type ];
+    if ( ! defaults ) return;
+    uml_object.params = uml_object.params || {};
+    for ( var key in defaults ) {
+      uml_object.params[ key ] = defaults[ key ];
+    }
+  };
+
+  //--------------------------------------
+  // 選択中の図形のパラメータを、その種別の初期値として記憶する
+  //   単一の非グループ図形が選択されている時だけ機能する（ドリルイン選択も可）。
+  //--------------------------------------
+  EditorScreen.prototype._setDefaultParamsBySelectedUmlObject = function(){
+    // 単一選択のみ（複数選択では機能しない）
+    if ( 1 != this.select_uml_object_ids.length ) return false;
+
+    // 選択の実体を取得（ドリルイン選択ならグループ内の当該図形、通常選択ならその図形）
+    var target = this._findUmlObjectByKey( this.select_uml_object_ids[0] );
+    // グループそのものの選択では機能しない（ドリルインで末端の図形を選んでいる場合は type != group となり機能する）
+    if ( ! target || "group" == target.type ) return false;
+
+    // 当該図形のパラメータを種別の初期値として記憶（値のみを複製）
+    var stored = {};
+    var params = target.params || {};
+    for ( var key in params ) {
+      stored[ key ] = params[ key ];
+    }
+    this.default_params_by_type[ target.type ] = stored;
+    return true;
+  };
+
+  //--------------------------------------
+  // ショートカットキー（cmd + d）からパラメータ初期値を設定する
+  //--------------------------------------
+  EditorScreen.prototype._setDefaultParamsByShortCutKey = function( statuses ){
+    if ( statuses.isShortCutDownKey( KEYCODE_SHORTCUT_SET_DEFAULT ) ) {
+      this._setDefaultParamsBySelectedUmlObject();
+      return true;
+    }
+  }
+
+  /*------------------------------------------------------------------------------
     描画関連
   ------------------------------------------------------------------------------*/
 
@@ -3994,6 +4050,10 @@ function EditorScreen(){
   EditorScreen.prototype._createUmlObject = function( tool_button_name ){
     // メインコンテンツ領域でクリップ
     var uml_object = this._createInitializedUmlObject( tool_button_name.replace( "tool_button_", "" ) );
+
+    // set as default params で設定された種別ごとの初期値があれば、生成時の初期パラメータへ上書きする。
+    //   パレットからの新規配置（この経路）でのみ適用し、コピペ・インスタントラベル等では適用しない。
+    this._applyDefaultParamsOverride( uml_object );
 
     // 初期配置位置を現在のスクロール位置を考慮した、画面中央の座標を取得
     var main_contents_element = this.findObjectByName( "main_contents" );
@@ -6463,6 +6523,11 @@ function EditorScreen(){
     // クリップボード
     this.clipboard = {};
 
+    // 図形種別ごとのパラメータ初期値の上書き（set as default params）。
+    //   { type: { paramKey: value, ... }, ... } 形式で、パレットからの新規配置時にのみ適用する。
+    //   コピペやJSON/PDF保存には影響せず、メモリ上のみで保持する（ブラウザを閉じると忘れる）。
+    this.default_params_by_type = {};
+
     // ペーストの基準位置（クリック操作で更新される。nullの間は従来のコピー元基準でカスケード）
     this.paste_base_position = null;
 
@@ -6690,6 +6755,8 @@ toggle_panel
   <div style="width:280;  border_width_bottom:1;  border_color:#909090;  margin:8 0 12 0;"></div>
   <button id='filemenu_edit_group'>make group ( cmd + g )</button><br/>
   <button id='filemenu_edit_release_group'>release group ( cmd + shift + g )</button><br/>
+  <div style="width:280;  border_width_bottom:1;  border_color:#909090;  margin:8 0 12 0;"></div>
+  <button id='filemenu_edit_set_default_params'>set as default params ( cmd + d )</button><br/>
 </toggle_panel>
 <!-- 表示メニュー -->
 <toggle_panel id='filemenu_view_panel'>
@@ -6954,6 +7021,9 @@ toggle_panel
       // グルーピング
       if ( this._groupSelectedUmlObjectsByShortCutKey( statuses ) || this._ungroupSelectedUmlObjectsByShortCutKey( statuses ) ) return true;
 
+      // パラメータ初期値の設定（set as default params）
+      if ( this._setDefaultParamsByShortCutKey( statuses ) ) return true;
+
       // オブジェクトの削除
       if ( this._removeByKey( statuses ) ) return true;
 
@@ -7132,6 +7202,11 @@ toggle_panel
         case "filemenu_edit_release_group":
         case "contextmenu_release_group":
           this._ungroupSelectedUmlObjects();
+          break;
+
+        // パラメータ初期値の設定（set as default params）
+        case "filemenu_edit_set_default_params":
+          this._setDefaultParamsBySelectedUmlObject();
           break;
 
         // 表示メニュー
