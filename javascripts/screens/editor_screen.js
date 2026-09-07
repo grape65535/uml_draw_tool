@@ -2435,14 +2435,41 @@ function EditorScreen(){
     if ( ! uml_object ) return;
     var defaults = this.default_params_by_type[ uml_object.type ];
     if ( ! defaults ) return;
-    uml_object.params = uml_object.params || {};
-    for ( var key in defaults ) {
-      uml_object.params[ key ] = defaults[ key ];
+
+    // パラメータ（fontSize / lineColor 等）を上書き
+    if ( defaults.params ) {
+      uml_object.params = uml_object.params || {};
+      for ( var key in defaults.params ) {
+        uml_object.params[ key ] = defaults.params[ key ];
+      }
     }
+
+    // 図形のサイズ（幅・高さ）を上書き
+    if ( "number" == typeof defaults.width  ) uml_object.width  = defaults.width;
+    if ( "number" == typeof defaults.height ) uml_object.height = defaults.height;
+
+    // 内部矩形（object/class の文字入力エリアを隔てる境界線の位置＝サイズ）を上書き。
+    //   内部矩形は絶対座標で保持されるため、記憶時に図形原点からの相対座標にしてある。
+    //   ここでは現在の図形原点（この時点では生成直後で 0,0）に相対座標を足して復元する。
+    if ( defaults.inner_rects ) {
+      for ( var rect_key in defaults.inner_rects ) {
+        var inner_rect = uml_object.inner_rects[ rect_key ];
+        if ( ! inner_rect ) continue;
+        var g = defaults.inner_rects[ rect_key ];
+        inner_rect.x      = uml_object.x + g.x;
+        inner_rect.y      = uml_object.y + g.y;
+        inner_rect.width  = g.width;
+        inner_rect.height = g.height;
+      }
+    }
+
+    // サイズ変更に伴い、サイズ依存で生成される内部図形（actor の頭・手足、branch の菱形など）を再生成する。
+    //   object/class/text_box など内部図形を持たない種別では空のまま（境界線は内部矩形の枠線で表現）。
+    uml_object.inner_shapes = this._refreshInnerShape( uml_object, uml_object.type );
   };
 
   //--------------------------------------
-  // 選択中の図形のパラメータを、その種別の初期値として記憶する
+  // 選択中の図形のパラメータ・サイズ・内部矩形を、その種別の初期値として記憶する
   //   単一の非グループ図形が選択されている時だけ機能する（ドリルイン選択も可）。
   //--------------------------------------
   EditorScreen.prototype._setDefaultParamsBySelectedUmlObject = function(){
@@ -2455,12 +2482,30 @@ function EditorScreen(){
     if ( ! target || "group" == target.type ) return false;
 
     // 当該図形のパラメータを種別の初期値として記憶（値のみを複製）
-    var stored = {};
+    var stored_params = {};
     var params = target.params || {};
     for ( var key in params ) {
-      stored[ key ] = params[ key ];
+      stored_params[ key ] = params[ key ];
     }
-    this.default_params_by_type[ target.type ] = stored;
+
+    // 内部矩形（境界線の位置）を図形原点からの相対座標で記憶する
+    var stored_inner_rects = {};
+    for ( var rect_key in target.inner_rects ) {
+      var inner_rect = target.inner_rects[ rect_key ];
+      stored_inner_rects[ rect_key ] = {
+        x:      inner_rect.x - target.x,
+        y:      inner_rect.y - target.y,
+        width:  inner_rect.width,
+        height: inner_rect.height,
+      };
+    }
+
+    this.default_params_by_type[ target.type ] = {
+      params:      stored_params,
+      width:       target.width,
+      height:      target.height,
+      inner_rects: stored_inner_rects,
+    };
     return true;
   };
 
