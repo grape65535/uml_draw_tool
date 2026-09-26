@@ -12,64 +12,68 @@
 <meta property="og:image" content="http://grape65535.jp/tools/uml_draw_tool/ogp.png" />
 
 <title>UML DrawTool</title>
-<link rel="stylesheet" media="all" href="./stylesheets/reset.css?v=1.10.0">
-<link rel="stylesheet" media="all" href="./stylesheets/layout.css?v=1.10.0">
+<link rel="stylesheet" media="all" href="./stylesheets/reset.css?v=1.11.0">
+<link rel="stylesheet" media="all" href="./stylesheets/layout.css?v=1.11.0">
 <link rel="icon" href="./favicon.ico">
 <!-- 外部js -->
-<script src="./javascripts/external/jquery.js?v=1.10.0"></script>
-<script src="./javascripts/external/crypto-js.min.js?v=1.10.0"></script>
-<script src="./javascripts/external/pdf-lib.min.js?v=1.10.0"></script>
-<script src="./javascripts/external/fontkit.umd.min.js?v=1.10.0"></script>
+<script src="./javascripts/external/jquery.js?v=1.11.0"></script>
+<script src="./javascripts/external/crypto-js.min.js?v=1.11.0"></script>
+<script src="./javascripts/external/pdf-lib.min.js?v=1.11.0"></script>
+<script src="./javascripts/external/fontkit.umd.min.js?v=1.11.0"></script>
 <!-- ユーティリティ関数 -->
-<script src="./javascripts/stop_browser_back.js?v=1.10.0"></script>
-<script src="./javascripts/es5_polyfill.js?v=1.10.0"></script>
-<script src="./javascripts/array_common_functions.js?v=1.10.0"></script>
-<script src="./javascripts/draw_functions.js?v=1.10.0"></script>
-<script src="./javascripts/draw_pdf_functions.js?v=1.10.0"></script>
-<script src="./javascripts/ttf_subset_functions.js?v=1.10.0"></script>
-<script src="./javascripts/draw_svg_functions.js?v=1.10.0"></script>
-<script src="./javascripts/collider_functions.js?v=1.10.0"></script>
+<script src="./javascripts/stop_browser_back.js?v=1.11.0"></script>
+<script src="./javascripts/es5_polyfill.js?v=1.11.0"></script>
+<script src="./javascripts/array_common_functions.js?v=1.11.0"></script>
+<script src="./javascripts/draw_functions.js?v=1.11.0"></script>
+<script src="./javascripts/draw_pdf_functions.js?v=1.11.0"></script>
+<script src="./javascripts/ttf_subset_functions.js?v=1.11.0"></script>
+<script src="./javascripts/draw_svg_functions.js?v=1.11.0"></script>
+<script src="./javascripts/collider_functions.js?v=1.11.0"></script>
 <!-- フレームワーク -->
-<script src="./javascripts/image_manager.js?v=1.10.0"></script>
-<script src="./javascripts/input_manager.js?v=1.10.0"></script>
-<script src="./javascripts/timer_manager.js?v=1.10.0"></script>
-<script src="./javascripts/screen_manager.js?v=1.10.0"></script>
-<script src="./javascripts/file_manager.js?v=1.10.0"></script>
-<script src="./javascripts/data_manager.js?v=1.10.0"></script>
-<script src="./javascripts/storage_manager.js?v=1.10.0"></script>
-<script src="./javascripts/html5_canvas_factory.js?v=1.10.0"></script>
-<script src="./javascripts/application.js?v=1.10.0"></script>
+<script src="./javascripts/image_manager.js?v=1.11.0"></script>
+<script src="./javascripts/input_manager.js?v=1.11.0"></script>
+<script src="./javascripts/timer_manager.js?v=1.11.0"></script>
+<script src="./javascripts/screen_manager.js?v=1.11.0"></script>
+<script src="./javascripts/file_manager.js?v=1.11.0"></script>
+<script src="./javascripts/data_manager.js?v=1.11.0"></script>
+<!-- UI表示用文言（言語ごと。i18n_manager.jsより前に読み込む） -->
+<script src="./javascripts/i18n/ja.js?v=1.11.0"></script>
+<script src="./javascripts/i18n/en.js?v=1.11.0"></script>
+<script src="./javascripts/i18n_manager.js?v=1.11.0"></script>
+<script src="./javascripts/storage_manager.js?v=1.11.0"></script>
+<script src="./javascripts/html5_canvas_factory.js?v=1.11.0"></script>
+<script src="./javascripts/application.js?v=1.11.0"></script>
 <!-- 画面 -->
-<script src="./javascripts/screens/screen_base/html_parser.js?v=1.10.0"></script>
-<script src="./javascripts/screens/screen_base/style_sheet_parser.js?v=1.10.0"></script>
-<script src="./javascripts/screens/screen_base/screen_base.js?v=1.10.0"></script>
+<script src="./javascripts/screens/screen_base/html_parser.js?v=1.11.0"></script>
+<script src="./javascripts/screens/screen_base/style_sheet_parser.js?v=1.11.0"></script>
+<script src="./javascripts/screens/screen_base/screen_base.js?v=1.11.0"></script>
 <!-- UIオブジェクト -->
-<script src="./javascripts/ui_objects/ui_base/dom_relation.js?v=1.10.0"></script>
-<script src="./javascripts/ui_objects/ui_base/dom_shape.js?v=1.10.0"></script>
-<script src="./javascripts/ui_objects/ui_base/style.js?v=1.10.0"></script>
-<script src="./javascripts/ui_objects/ui_base/layouter.js?v=1.10.0"></script>
-<script src="./javascripts/ui_objects/ui_base/presenter.js?v=1.10.0"></script>
-<script src="./javascripts/ui_objects/ui_base/ui_base.js?v=1.10.0"></script>
-<script src="./javascripts/ui_objects/break.js?v=1.10.0"></script>
-<script src="./javascripts/ui_objects/panel.js?v=1.10.0"></script>
-<script src="./javascripts/ui_objects/text.js?v=1.10.0"></script>
-<script src="./javascripts/ui_objects/child_text.js?v=1.10.0"></script>
-<script src="./javascripts/ui_objects/picture.js?v=1.10.0"></script>
-<script src="./javascripts/ui_objects/button.js?v=1.10.0"></script>
-<script src="./javascripts/ui_objects/text_input.js?v=1.10.0"></script>
-<script src="./javascripts/ui_objects/multiline_text_input.js?v=1.10.0"></script>
-<script src="./javascripts/ui_objects/checkbox.js?v=1.10.0"></script>
-<script src="./javascripts/ui_objects/radio.js?v=1.10.0"></script>
-<script src="./javascripts/ui_objects/list_item.js?v=1.10.0"></script>
-<script src="./javascripts/ui_objects/list.js?v=1.10.0"></script>
-<script src="./javascripts/ui_objects/horizontal_list_item.js?v=1.10.0"></script>
-<script src="./javascripts/ui_objects/horizontal_list.js?v=1.10.0"></script>
-<script src="./javascripts/ui_objects/pull_down_item.js?v=1.10.0"></script>
-<script src="./javascripts/ui_objects/pull_down.js?v=1.10.0"></script>
-<script src="./javascripts/ui_objects/progress_bar.js?v=1.10.0"></script>
-<script src="./javascripts/ui_objects/toggle_panel.js?v=1.10.0"></script>
+<script src="./javascripts/ui_objects/ui_base/dom_relation.js?v=1.11.0"></script>
+<script src="./javascripts/ui_objects/ui_base/dom_shape.js?v=1.11.0"></script>
+<script src="./javascripts/ui_objects/ui_base/style.js?v=1.11.0"></script>
+<script src="./javascripts/ui_objects/ui_base/layouter.js?v=1.11.0"></script>
+<script src="./javascripts/ui_objects/ui_base/presenter.js?v=1.11.0"></script>
+<script src="./javascripts/ui_objects/ui_base/ui_base.js?v=1.11.0"></script>
+<script src="./javascripts/ui_objects/break.js?v=1.11.0"></script>
+<script src="./javascripts/ui_objects/panel.js?v=1.11.0"></script>
+<script src="./javascripts/ui_objects/text.js?v=1.11.0"></script>
+<script src="./javascripts/ui_objects/child_text.js?v=1.11.0"></script>
+<script src="./javascripts/ui_objects/picture.js?v=1.11.0"></script>
+<script src="./javascripts/ui_objects/button.js?v=1.11.0"></script>
+<script src="./javascripts/ui_objects/text_input.js?v=1.11.0"></script>
+<script src="./javascripts/ui_objects/multiline_text_input.js?v=1.11.0"></script>
+<script src="./javascripts/ui_objects/checkbox.js?v=1.11.0"></script>
+<script src="./javascripts/ui_objects/radio.js?v=1.11.0"></script>
+<script src="./javascripts/ui_objects/list_item.js?v=1.11.0"></script>
+<script src="./javascripts/ui_objects/list.js?v=1.11.0"></script>
+<script src="./javascripts/ui_objects/horizontal_list_item.js?v=1.11.0"></script>
+<script src="./javascripts/ui_objects/horizontal_list.js?v=1.11.0"></script>
+<script src="./javascripts/ui_objects/pull_down_item.js?v=1.11.0"></script>
+<script src="./javascripts/ui_objects/pull_down.js?v=1.11.0"></script>
+<script src="./javascripts/ui_objects/progress_bar.js?v=1.11.0"></script>
+<script src="./javascripts/ui_objects/toggle_panel.js?v=1.11.0"></script>
 <!-- アプリケーション実装 -->
-<script src="./javascripts/screens/editor_screen.js?v=1.10.0"></script>
+<script src="./javascripts/screens/editor_screen.js?v=1.11.0"></script>
 <style>
 
 /* IPAフォント
@@ -105,6 +109,9 @@ body
 </style>
 <script type="text/javascript">
 $(function(){
+
+    // HTML文書（タイトル・lang属性）に表示言語を反映する
+    i18n.applyDocument();
 
     $("#loading").remove();
 

@@ -1285,85 +1285,89 @@ function EditorScreen(){
 
     // UI用のHTML生成（表示順序を固定する。paramsに存在するキーのみ描画する）
     var ordered_keys = [ "fontSize", "nameAlign", "textAlign", "verticalAlign", "wordBreak", "textColor", "pathStyle", "lineStyle", "lineStartStyle", "lineEndStyle", "lineWidth", "lineColor", "backgroundColor" ];
+    // 選択肢（option要素）のHTML生成。表示名は 文言ファイル（javascripts/i18n/*.js）の options から取得する
+    var buildOption = function( key, value ){
+      return `<option value='${ value }' ${ value == params[ key ] ? "selected" : "" }>${ i18n.t( "options." + value ) }</option>`;
+    };
     var html_string = "";
     for ( var ki=0; ki<ordered_keys.length; ki++ ) {
       var key = ordered_keys[ ki ];
       if ( ! params.hasOwnProperty( key ) ) continue;
       switch ( key ) {
       case "fontSize":
-        html_string += `<div>${ key }<input id='input_${ key }' value='${ ( null != params[ key ] ? params[ key ] : "" ) }' /></div>`;
+        html_string += `<div>${ i18n.t( "params." + key ) }<input id='input_${ key }' value='${ ( null != params[ key ] ? params[ key ] : "" ) }' /></div>`;
         break;
 
       case "nameAlign":
       case "textAlign":
         var options = "";
         if ( ! params[ key ] ) options += "<option value=''></option>";
-        options += `<option value='left'   ${  "left"  == params[ key ] ? "selected" : "" }>left</option>`;
-        options += `<option value='center' ${ "center" == params[ key ] ? "selected" : "" }>center</option>`;
-        options += `<option value='right'  ${ "right"  == params[ key ] ? "selected" : "" }>right</option>`;
-        html_string += `<div>${ key }<br/><select id='input_${ key }'>${ options }</select></div>`;
+        options += buildOption( key, "left" );
+        options += buildOption( key, "center" );
+        options += buildOption( key, "right" );
+        html_string += `<div>${ i18n.t( "params." + key ) }<br/><select id='input_${ key }'>${ options }</select></div>`;
         break;
 
       case "verticalAlign":
         var options = "";
         if ( ! params[ key ] ) options += "<option value=''></option>";
-        options += `<option value='top'    ${ "top"    == params[ key ] ? "selected" : "" }>top</option>`;
-        options += `<option value='center' ${ "center" == params[ key ] ? "selected" : "" }>center</option>`;
-        options += `<option value='bottom' ${ "bottom" == params[ key ] ? "selected" : "" }>bottom</option>`;
-        html_string += `<div>${ key }<br/><select id='input_${ key }'>${ options }</select></div>`;
+        options += buildOption( key, "top" );
+        options += buildOption( key, "center" );
+        options += buildOption( key, "bottom" );
+        html_string += `<div>${ i18n.t( "params." + key ) }<br/><select id='input_${ key }'>${ options }</select></div>`;
         break;
 
       case "wordBreak":
         var options = "";
         if ( ! params[ key ] ) options += "<option value=''></option>";
-        options += `<option value='normal' ${ "normal" == params[ key ] ? "selected" : "" }>normal</option>`;
-        options += `<option value='break'  ${ "break"  == params[ key ] ? "selected" : "" }>break</option>`;
-        html_string += `<div>${ key }<br/><select id='input_${ key }'>${ options }</select></div>`;
+        options += buildOption( key, "normal" );
+        options += buildOption( key, "break" );
+        html_string += `<div>${ i18n.t( "params." + key ) }<br/><select id='input_${ key }'>${ options }</select></div>`;
         break;
 
       case "pathStyle":
         var options = "";
         if ( ! params[ key ] ) options += "<option value=''></option>";
-        options += `<option value='line'  ${  "line" == params[ key ] ? "selected" : "" }>line</option>`;
-        options += `<option value='curve' ${ "curve" == params[ key ] ? "selected" : "" }>curve</option>`;
-        html_string += `<div>${ key }<br/><select id='input_${ key }'>${ options }</select></div>`;
+        options += buildOption( key, "line" );
+        options += buildOption( key, "curve" );
+        html_string += `<div>${ i18n.t( "params." + key ) }<br/><select id='input_${ key }'>${ options }</select></div>`;
         break;
 
       case "lineStyle":
         var options = "";
         if ( ! params[ key ] ) options += "<option value=''></option>";
-        options += `<option value='solid'  ${  "solid" == params[ key ] ? "selected" : "" }>solid</option>`;
-        options += `<option value='dashed' ${ "dashed" == params[ key ] ? "selected" : "" }>dashed</option>`;
-        options += `<option value='dotted' ${ "dotted" == params[ key ] ? "selected" : "" }>dotted</option>`;
-        html_string += `<div>${ key }<br/><select id='input_${ key }'>${ options }</select></div>`;
+        options += buildOption( key, "solid" );
+        options += buildOption( key, "dashed" );
+        options += buildOption( key, "dotted" );
+        html_string += `<div>${ i18n.t( "params." + key ) }<br/><select id='input_${ key }'>${ options }</select></div>`;
         break;
 
       case "lineStartStyle":
       case "lineEndStyle":
         var options = "";
         if ( ! params[ key ] ) options += "<option value=''></option>";
-        options += `<option value='none'                 ${                 "none" == params[ key ] ? "selected" : "" }>none</option>`;
-        options += `<option value='arrow'                ${                "arrow" == params[ key ] ? "selected" : "" }>arrow</option>`;
-        options += `<option value='check_arrow'          ${          "check_arrow" == params[ key ] ? "selected" : "" }>check-arrow</option>`;
-        options += `<option value='triangle_arrow'       ${       "triangle_arrow" == params[ key ] ? "selected" : "" }>triangle-arrow</option>`;
-        options += `<option value='triangle_arrow_black' ${ "triangle_arrow_black" == params[ key ] ? "selected" : "" }>triangle-arrow(black)</option>`;
-        options += `<option value='rhombus'              ${              "rhombus" == params[ key ] ? "selected" : "" }>rhombus</option>`;
-        options += `<option value='rhombus_black'        ${        "rhombus_black" == params[ key ] ? "selected" : "" }>rhombus(black)</option>`;
-        options += `<option value='circle'               ${               "circle" == params[ key ] ? "selected" : "" }>circle</option>`;
-        options += `<option value='circle_black'         ${         "circle_black" == params[ key ] ? "selected" : "" }>circle(black)</option>`;
-        html_string += `<div>${ key }<br/><select id='input_${ key }'>${ options }</select></div>`;
+        options += buildOption( key, "none" );
+        options += buildOption( key, "arrow" );
+        options += buildOption( key, "check_arrow" );
+        options += buildOption( key, "triangle_arrow" );
+        options += buildOption( key, "triangle_arrow_black" );
+        options += buildOption( key, "rhombus" );
+        options += buildOption( key, "rhombus_black" );
+        options += buildOption( key, "circle" );
+        options += buildOption( key, "circle_black" );
+        html_string += `<div>${ i18n.t( "params." + key ) }<br/><select id='input_${ key }'>${ options }</select></div>`;
         break;
 
       case "lineColor":
-        html_string += `<div>${ key }<br/><select id='input_${ key }'>${ this._buildColorOptions( params[ key ], true, false ) }</select></div>`;
+        html_string += `<div>${ i18n.t( "params." + key ) }<br/><select id='input_${ key }'>${ this._buildColorOptions( params[ key ], true, false ) }</select></div>`;
         break;
 
       case "textColor":
-        html_string += `<div>${ key }<br/><select id='input_${ key }'>${ this._buildColorOptions( params[ key ], true, false ) }</select></div>`;
+        html_string += `<div>${ i18n.t( "params." + key ) }<br/><select id='input_${ key }'>${ this._buildColorOptions( params[ key ], true, false ) }</select></div>`;
         break;
 
       case "backgroundColor":
-        html_string += `<div>${ key }<br/><select id='input_${ key }'>${ this._buildColorOptions( params[ key ], true, true ) }</select></div>`;
+        html_string += `<div>${ i18n.t( "params." + key ) }<br/><select id='input_${ key }'>${ this._buildColorOptions( params[ key ], true, true ) }</select></div>`;
         break;
 
       case "lineWidth":
@@ -1372,7 +1376,7 @@ function EditorScreen(){
         for ( var w=1; w<=5; w++ ) {
           options += `<option value='${ w }' ${ w == params[ key ] ? "selected" : "" }>${ w }px</option>`;
         }
-        html_string += `<div>${ key }<br/><select id='input_${ key }'>${ options }</select></div>`;
+        html_string += `<div>${ i18n.t( "params." + key ) }<br/><select id='input_${ key }'>${ options }</select></div>`;
         break;
       }
     }
@@ -2726,30 +2730,30 @@ function EditorScreen(){
   //--------------------------------------
   EditorScreen.prototype._buildColorOptions = function( selected_value, include_white, include_transparent ){
     // 表示順: (white), gray, black, pink, red, brown, light_green, green, dark_green, sky_blue, blue, dark_blue, yellow, purple, (transparent)
-    // 表示ラベルの空白はプルダウン表示の折り返し対策でアンダースコアにする（内部値 value は darkgreen 等で不変）
+    // 表示名は 文言ファイル（javascripts/i18n/*.js）の colors から取得する（内部値 value は darkgreen 等で不変）
     var colors = [];
-    if ( include_white ) colors.push( [ "white", "white" ] );
+    if ( include_white ) colors.push( "white" );
     colors = colors.concat( [
-      [ "gray",       "gray" ],
-      [ "black",      "black" ],
-      [ "pink",       "pink" ],
-      [ "red",        "red" ],
-      [ "brown",      "brown" ],
-      [ "lightgreen", "light_green" ],
-      [ "green",      "green" ],
-      [ "darkgreen",  "dark_green" ],
-      [ "skyblue",    "sky_blue" ],
-      [ "blue",       "blue" ],
-      [ "darkblue",   "dark_blue" ],
-      [ "yellow",     "yellow" ],
-      [ "purple",     "purple" ]
+      "gray",
+      "black",
+      "pink",
+      "red",
+      "brown",
+      "lightgreen",
+      "green",
+      "darkgreen",
+      "skyblue",
+      "blue",
+      "darkblue",
+      "yellow",
+      "purple"
     ] );
-    if ( include_transparent ) colors.push( [ "transparent", "transparent" ] );
+    if ( include_transparent ) colors.push( "transparent" );
     var options = "";
     // 複数選択で値が混在している場合は空の選択肢を表示する
     if ( ! selected_value ) options += "<option value=''></option>";
     for ( var i=0; i<colors.length; i++ ) {
-      options += `<option value='${ colors[i][0] }' ${ colors[i][0] == selected_value ? "selected" : "" }>${ colors[i][1] }</option>`;
+      options += `<option value='${ colors[i] }' ${ colors[i] == selected_value ? "selected" : "" }>${ i18n.t( "colors." + colors[i] ) }</option>`;
     }
     return options;
   };
@@ -4244,7 +4248,7 @@ function EditorScreen(){
   EditorScreen.prototype._placeImageByDataUrl = function( data_url ){
     this._normalizeImageDataUrl( data_url, function( normalized_data_url, image_width, image_height ){
       if ( ! normalized_data_url ) {
-        alert("この画像を配置することはできません");
+        alert( i18n.t( "messages.cannot_place_image" ) );
         return;
       }
 
@@ -6839,7 +6843,7 @@ function EditorScreen(){
       this._refreshPaperSize();
 
       // タイトルがあれば表示する
-      var title_name = this._findLikelyFileTitle() || "UML DrawTool";
+      var title_name = this._findLikelyFileTitle() || i18n.t( "title" );
       $("title").text( title_name );
     }
   }
@@ -6921,7 +6925,7 @@ function EditorScreen(){
   EditorScreen.prototype._saveAsJson = function(){
     var title_name = this._findLikelyFileTitle();
     this.file_manager.downloadJson( this.save_data, `${ title_name || "uml_diagram" }_${ this._getDateTimeString( new Date() ) }.json` );
-    $("title").text( title_name || "UML DrawTool" );
+    $("title").text( title_name || i18n.t( "title" ) );
   };
 
   //--------------------------------------
@@ -6931,7 +6935,7 @@ function EditorScreen(){
     this._exportPdfBlob( function( blob ){
       var title_name = this._findLikelyFileTitle();
       this.file_manager.downloadBlob( blob, `${ title_name || "uml_diagram" }_${ this._getDateTimeString( new Date() ) }.pdf` );
-      $("title").text( title_name || "UML DrawTool" );
+      $("title").text( title_name || i18n.t( "title" ) );
     }.bind(this) );
   };
 
@@ -6943,7 +6947,7 @@ function EditorScreen(){
     this._exportSvgBlob( function( blob ){
       var title_name = this._findLikelyFileTitle();
       this.file_manager.downloadBlob( blob, `${ title_name || "uml_diagram" }_${ this._getDateTimeString( new Date() ) }.svg` );
-      $("title").text( title_name || "UML DrawTool" );
+      $("title").text( title_name || i18n.t( "title" ) );
     }.bind(this), is_embed_json );
   };
 
@@ -6959,6 +6963,78 @@ function EditorScreen(){
   };
 
   /*------------------------------------------------------------------------------
+    表示言語
+  ------------------------------------------------------------------------------*/
+
+  //--------------------------------------
+  // 言語選択メニューの項目名（選択中の言語に印を付ける）
+  //--------------------------------------
+  EditorScreen.prototype._languageMenuLabel = function( language ){
+    // 言語名は、どの表示言語でもその言語自身の表記で表示する
+    return ( language == i18n.getLanguage() ? "● " : "○ " ) + i18n.t( "language_name", language );
+  };
+
+  //--------------------------------------
+  // 言語選択メニューのHTML生成（文言ファイルが登録された言語ごとに項目を作る）
+  //--------------------------------------
+  EditorScreen.prototype._buildLanguageMenuHtml = function(){
+    var languages = i18n.supportedLanguages();
+    var html_string = "";
+    for ( var i=0; i<languages.length; i++ ) {
+      html_string += `<button id='filemenu_view_language_${ languages[i] }'>${ this._languageMenuLabel( languages[i] ) }</button><br/>`;
+    }
+    return html_string;
+  };
+
+  //--------------------------------------
+  // UIオブジェクトの表示文言を差し替える（ボタン等の子のテキストを書き換える）
+  //--------------------------------------
+  EditorScreen.prototype._setObjectLabel = function( object, text ){
+    for ( var i=0; i<object.children.length; i++ ) {
+      if ( "Text" == object.children[i].objectName() ) {
+        object.children[i].text = text;
+        return;
+      }
+    }
+  };
+
+  //--------------------------------------
+  // 現在の表示言語をUI全体に反映する
+  //--------------------------------------
+  EditorScreen.prototype._applyLanguage = function(){
+    // メニューなど、文言ファイルの ui に定義された文言を持つオブジェクト
+    var ui_keys = i18n.keys( "ui" );
+    for ( var i=0; i<ui_keys.length; i++ ) {
+      var object = this.findObjectByName( ui_keys[i] );
+      if ( object ) this._setObjectLabel( object, i18n.t( "ui." + ui_keys[i] ) );
+    }
+
+    // 言語選択メニュー
+    var languages = i18n.supportedLanguages();
+    for ( var i=0; i<languages.length; i++ ) {
+      var object = this.findObjectByName( `filemenu_view_language_${ languages[i] }` );
+      if ( object ) this._setObjectLabel( object, this._languageMenuLabel( languages[i] ) );
+    }
+
+    // サイドメニュー（パラメータ入力欄）は再生成する
+    this._refreshSelectedUmlObjectParams();
+
+    // HTML文書のタイトル（図のタイトルがあればそれを優先）とlang属性
+    i18n.applyDocument( this._findLikelyFileTitle() );
+
+    this.screen_manager.requestRelayout( this );
+    this.screen_manager.requestDraw( this );
+  };
+
+  //--------------------------------------
+  // 表示言語の切り替え
+  //--------------------------------------
+  EditorScreen.prototype._changeLanguage = function( language ){
+    if ( language == i18n.getLanguage() ) return;
+    if ( i18n.setLanguage( language ) ) this._applyLanguage();
+  };
+
+  /*------------------------------------------------------------------------------
     publicメソッド
   ------------------------------------------------------------------------------*/
 
@@ -6970,7 +7046,7 @@ function EditorScreen(){
 
     // アプリケーション名
     this.application_name = "uml_draw_tool";
-    this.current_version = "v1.10.0";
+    this.current_version = "v1.11.0";
 
     // 画像管理を生成
     this.image_manager = ( new ImageManager() ).initialize(this);
@@ -7073,9 +7149,9 @@ toggle_panel
 <!-- ヘッダ -->
 <header>
   <div class='left'>
-    <button id='filemenu_file'>File</button>
-    <button id='filemenu_edit'>Edit</button>
-    <button id='filemenu_view'>View</button>
+    <button id='filemenu_file'>${ i18n.t( "ui.filemenu_file" ) }</button>
+    <button id='filemenu_edit'>${ i18n.t( "ui.filemenu_edit" ) }</button>
+    <button id='filemenu_view'>${ i18n.t( "ui.filemenu_view" ) }</button>
   </div>
   <div class='right'>${ this.current_version }</div>
 </header>
@@ -7119,56 +7195,58 @@ toggle_panel
 </div>
 <!-- ファイルメニュー -->
 <toggle_panel id='filemenu_file_panel'>
-  <button id='filemenu_file_save_json'>save as JSON ( cmd + s )</button><br/>
-  <button id='filemenu_file_save_pdf'>save as PDF</button><br/>
-  <button id='filemenu_file_save_svg'>save as SVG</button><br/>
-  <button id='filemenu_file_save_svg_embed_json'>save as SVG embed JSON</button><br/>
+  <button id='filemenu_file_save_json'>${ i18n.t( "ui.filemenu_file_save_json" ) }</button><br/>
+  <button id='filemenu_file_save_pdf'>${ i18n.t( "ui.filemenu_file_save_pdf" ) }</button><br/>
+  <button id='filemenu_file_save_svg'>${ i18n.t( "ui.filemenu_file_save_svg" ) }</button><br/>
+  <button id='filemenu_file_save_svg_embed_json'>${ i18n.t( "ui.filemenu_file_save_svg_embed_json" ) }</button><br/>
 </toggle_panel>
 <!-- 編集メニュー -->
 <toggle_panel id='filemenu_edit_panel'>
-  <button id='filemenu_edit_undo'>undo ( cmd + z )</button><br/>
-  <button id='filemenu_edit_redo'>redo ( cmd + shift + z )</button><br/>
+  <button id='filemenu_edit_undo'>${ i18n.t( "ui.filemenu_edit_undo" ) }</button><br/>
+  <button id='filemenu_edit_redo'>${ i18n.t( "ui.filemenu_edit_redo" ) }</button><br/>
   <div style="width:280;  border_width_bottom:1;  border_color:#909090;  margin:8 0 12 0;"></div>
-  <button id='filemenu_edit_cut'>cut ( cmd + x )</button><br/>
-  <button id='filemenu_edit_copy'>copy ( cmd + c )</button><br/>
-  <button id='filemenu_edit_paste'>paste ( cmd + v )</button><br/>
-  <button id='filemenu_edit_plain_related_paste'>related paste ( alt + down key )</button><br/>
-  <button id='filemenu_edit_arrow_related_paste'>arrow related paste ( cmd + down key )</button><br/>
+  <button id='filemenu_edit_cut'>${ i18n.t( "ui.filemenu_edit_cut" ) }</button><br/>
+  <button id='filemenu_edit_copy'>${ i18n.t( "ui.filemenu_edit_copy" ) }</button><br/>
+  <button id='filemenu_edit_paste'>${ i18n.t( "ui.filemenu_edit_paste" ) }</button><br/>
+  <button id='filemenu_edit_plain_related_paste'>${ i18n.t( "ui.filemenu_edit_plain_related_paste" ) }</button><br/>
+  <button id='filemenu_edit_arrow_related_paste'>${ i18n.t( "ui.filemenu_edit_arrow_related_paste" ) }</button><br/>
   <div style="width:280;  border_width_bottom:1;  border_color:#909090;  margin:8 0 12 0;"></div>
-  <button id='filemenu_edit_most_background'>show on most background ( cmd + [ )</button><br/>
-  <button id='filemenu_edit_background'>show on background ( [ )</button><br/>
-  <button id='filemenu_edit_foreground'>show on foreground ( ] )</button><br/>
-  <button id='filemenu_edit_most_foreground'>show on most foreground ( cmd + ] )</button><br/>
+  <button id='filemenu_edit_most_background'>${ i18n.t( "ui.filemenu_edit_most_background" ) }</button><br/>
+  <button id='filemenu_edit_background'>${ i18n.t( "ui.filemenu_edit_background" ) }</button><br/>
+  <button id='filemenu_edit_foreground'>${ i18n.t( "ui.filemenu_edit_foreground" ) }</button><br/>
+  <button id='filemenu_edit_most_foreground'>${ i18n.t( "ui.filemenu_edit_most_foreground" ) }</button><br/>
   <div style="width:280;  border_width_bottom:1;  border_color:#909090;  margin:8 0 12 0;"></div>
-  <button id='filemenu_edit_group'>make group ( cmd + g )</button><br/>
-  <button id='filemenu_edit_release_group'>release group ( cmd + shift + g )</button><br/>
+  <button id='filemenu_edit_group'>${ i18n.t( "ui.filemenu_edit_group" ) }</button><br/>
+  <button id='filemenu_edit_release_group'>${ i18n.t( "ui.filemenu_edit_release_group" ) }</button><br/>
   <div style="width:280;  border_width_bottom:1;  border_color:#909090;  margin:8 0 12 0;"></div>
-  <button id='filemenu_edit_set_default_params'>set as default params ( cmd + d )</button><br/>
+  <button id='filemenu_edit_set_default_params'>${ i18n.t( "ui.filemenu_edit_set_default_params" ) }</button><br/>
 </toggle_panel>
 <!-- 表示メニュー -->
 <toggle_panel id='filemenu_view_panel'>
-  <button id='filemenu_view_50'>zoom 50%</button><br/>
-  <button id='filemenu_view_75'>zoom 74%</button><br/>
-  <button id='filemenu_view_100'>zoom 100%</button><br/>
-  <button id='filemenu_view_125'>zoom 125%</button><br/>
-  <button id='filemenu_view_150'>zoom 150%</button><br/>
-  <button id='filemenu_view_200'>zoom 200%</button><br/>
+  <button id='filemenu_view_50'>${ i18n.t( "ui.filemenu_view_50" ) }</button><br/>
+  <button id='filemenu_view_75'>${ i18n.t( "ui.filemenu_view_75" ) }</button><br/>
+  <button id='filemenu_view_100'>${ i18n.t( "ui.filemenu_view_100" ) }</button><br/>
+  <button id='filemenu_view_125'>${ i18n.t( "ui.filemenu_view_125" ) }</button><br/>
+  <button id='filemenu_view_150'>${ i18n.t( "ui.filemenu_view_150" ) }</button><br/>
+  <button id='filemenu_view_200'>${ i18n.t( "ui.filemenu_view_200" ) }</button><br/>
+  <div style="width:180;  border_width_bottom:1;  border_color:#909090;  margin:8 0 12 0;"></div>
+  ${ this._buildLanguageMenuHtml() }
 </toggle_panel>
 <!-- 右クリックメニュー -->
 <toggle_panel id='context_menu_panel'>
-  <button id='contextmenu_cut'>cut</button><br/>
-  <button id='contextmenu_copy'>copy</button><br/>
-  <button id='contextmenu_paste'>paste</button><br/>
-  <button id='contextmenu_plain_related_paste'>related paste</button><br/>
-  <button id='contextmenu_arrow_related_paste'>arrow related paste</button><br/>
+  <button id='contextmenu_cut'>${ i18n.t( "ui.contextmenu_cut" ) }</button><br/>
+  <button id='contextmenu_copy'>${ i18n.t( "ui.contextmenu_copy" ) }</button><br/>
+  <button id='contextmenu_paste'>${ i18n.t( "ui.contextmenu_paste" ) }</button><br/>
+  <button id='contextmenu_plain_related_paste'>${ i18n.t( "ui.contextmenu_plain_related_paste" ) }</button><br/>
+  <button id='contextmenu_arrow_related_paste'>${ i18n.t( "ui.contextmenu_arrow_related_paste" ) }</button><br/>
   <div style="width:187;  border_width_bottom:1;  border_color:#909090;  margin:8 0 12 0;"></div>
-  <button id='contextmenu_most_background'>show on most background</button><br/>
-  <button id='contextmenu_background'>show on background</button><br/>
-  <button id='contextmenu_foreground'>show on foreground</button><br/>
-  <button id='contextmenu_most_foreground'>show on most foreground</button><br/>
+  <button id='contextmenu_most_background'>${ i18n.t( "ui.contextmenu_most_background" ) }</button><br/>
+  <button id='contextmenu_background'>${ i18n.t( "ui.contextmenu_background" ) }</button><br/>
+  <button id='contextmenu_foreground'>${ i18n.t( "ui.contextmenu_foreground" ) }</button><br/>
+  <button id='contextmenu_most_foreground'>${ i18n.t( "ui.contextmenu_most_foreground" ) }</button><br/>
   <div style="width:187;  border_width_bottom:1;  border_color:#909090;  margin:8 0 12 0;"></div>
-  <button id='contextmenu_group'>make group</button><br/>
-  <button id='contextmenu_release_group'>release group</button><br/>
+  <button id='contextmenu_group'>${ i18n.t( "ui.contextmenu_group" ) }</button><br/>
+  <button id='contextmenu_release_group'>${ i18n.t( "ui.contextmenu_release_group" ) }</button><br/>
 </toggle_panel>
 `
     );
@@ -7469,6 +7547,12 @@ toggle_panel
     // クリックイベント
     case "click":
       if ( object ) {
+        // 表示言語の切り替え（表示メニュー）
+        if ( 0 == object.name.indexOf( "filemenu_view_language_" ) ) {
+          this._changeLanguage( object.name.slice( "filemenu_view_language_".length ) );
+          break;
+        }
+
         switch( object.name ){
         // ファイルメニュー
         case "filemenu_file":
@@ -7759,7 +7843,7 @@ toggle_panel
       if ( data.application_name == this.application_name ) {
 
         if ( 0 < this.data_manager.getHistorySize() ) {
-          if ( window.confirm("このファイルを別タブで開きますか？") ) {
+          if ( window.confirm( i18n.t( "messages.confirm_open_in_new_tab" ) ) ) {
             this._openUmlDrawToolInNewTab( json );
           }
           else {
@@ -7774,7 +7858,7 @@ toggle_panel
       }  
     }
 
-    alert("このファイルを開くことはできません");
+    alert( i18n.t( "messages.cannot_open_file" ) );
   };
 
   //--------------------------------------
