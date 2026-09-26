@@ -7878,7 +7878,7 @@ function EditorScreen(){
 
     // アプリケーション名
     this.application_name = "uml_draw_tool";
-    this.current_version = "v1.11.0";
+    this.current_version = "v1.11.1";
 
     // 画像管理を生成
     this.image_manager = ( new ImageManager() ).initialize(this);
