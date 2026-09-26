@@ -429,7 +429,7 @@ function ScreenBase(){
   //--------------------------------------
   ScreenBase.prototype.requestBlurInput = function(){
     if ( null == this.focus_ui_object && this.canvas_input.is(':visible') ) {
-      this.canvas_input.hide();
+      this.canvas_input.blur().hide();  // 非表示後もキー入力を奪わない様にフォーカスを外す
       this.screen_manager.requestDraw( this );
       return this.canvas_input.val();
     }
@@ -472,7 +472,7 @@ function ScreenBase(){
   //--------------------------------------
   ScreenBase.prototype.requestBlurTextarea = function(){
     if ( null == this.focus_ui_object && this.canvas_textarea.is(':visible') ) {
-      this.canvas_textarea.hide();
+      this.canvas_textarea.blur().hide();  // 非表示後もキー入力を奪わない様にフォーカスを外す
       this.screen_manager.requestDraw( this );
       return this.canvas_textarea.val();
     }
@@ -643,7 +643,7 @@ function ScreenBase(){
 
     case "request_blur_input":
       if ( this.focus_ui_object && this.canvas_input.is(':visible') ) {
-        this.canvas_input.hide();
+        this.canvas_input.blur().hide();  // 非表示後もキー入力を奪わない様にフォーカスを外す
         this.focus_ui_object.is_show_input_element = false;
         object.val( this.canvas_input.val() );
         this.screen_manager.requestDraw( this );
@@ -674,7 +674,7 @@ function ScreenBase(){
 
     case "request_blur_textarea":
       if ( this.focus_ui_object && this.canvas_textarea.is(':visible') ) {
-        this.canvas_textarea.hide();
+        this.canvas_textarea.blur().hide();  // 非表示後もキー入力を奪わない様にフォーカスを外す
         this.focus_ui_object.is_show_input_element = false;
         object.val( this.canvas_textarea.val() );
         this.screen_manager.requestDraw( this );

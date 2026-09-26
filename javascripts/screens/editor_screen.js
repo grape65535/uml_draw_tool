@@ -4586,6 +4586,52 @@ function EditorScreen(){
   };
 
   //--------------------------------------
+  // UMLオブジェクト内の文字入力可能な矩形を位置順（上→下、左→右）で取得する
+  //--------------------------------------
+  EditorScreen.prototype._getTextShapesByUmlObject = function( uml_object ){
+    var text_shapes = [];
+    for ( var key in uml_object.inner_rects ) {
+      var inner_rect = uml_object.inner_rects[key];
+      if ( "rect" == inner_rect.type && inner_rect.has_text ) text_shapes.push( inner_rect );
+    }
+    text_shapes.sort( function( a, b ){
+      return ( a.y - b.y ) || ( a.x - b.x );
+    } );
+    return text_shapes;
+  };
+
+  //--------------------------------------
+  // ENTERキーで選択中のUMLオブジェクトの文字入力を開始する
+  //   選択中のオブジェクトが1つで、文字入力可能な矩形を持つ場合のみ。
+  //   文字矩形を選択中ならその矩形、そうでなければ位置順で先頭の文字矩形を入力対象にする。
+  //--------------------------------------
+  EditorScreen.prototype._startInputtingByEnterKey = function( statuses ){
+    if ( ! statuses.isDownKey( KEYCODE_ENTER ) ) return false;
+    // 既に文字入力中なら何もしない
+    if ( this.inputting_uml_object || this.inputting_instant_label ) return false;
+    // ボタン以外のUIオブジェクト（パラメータ欄等）にフォーカスがある時は、そちらのENTER操作を優先する
+    if ( this.focus_ui_object && "Button" != this.focus_ui_object.objectName() ) return false;
+    // 単一選択の時のみ
+    if ( 1 != this.select_uml_object_ids.length ) return false;
+
+    var selected_key = this.select_uml_object_ids[0];
+    var uml_object = this._findUmlObjectByKey( selected_key );
+    if ( ! uml_object ) return false;
+    var text_shapes = this._getTextShapesByUmlObject( uml_object );
+    if ( 0 == text_shapes.length ) return false;
+
+    // 文字矩形を選択中ならその矩形を優先する
+    var selected_shape = this._getUmlObjectInnerShapeByKey( selected_key );
+    var shape = ( -1 != text_shapes.indexOf( selected_shape ) ? selected_shape : text_shapes[0] );
+
+    // 右クリックメニューが開いていれば閉じる
+    this._hideContextMenu();
+
+    this._startInputtingUmlObjectShape( uml_object, shape );
+    return true;
+  };
+
+  //--------------------------------------
   // 複数行テキストの入力エリアでのTABキー押下
   //   入力中の文字を確定し、同じUMLオブジェクト内の次の（SHIFT併用時は前の）文字矩形へ入力を移動する。
   //   文字矩形は位置順（上→下、左→右）に巡回する。
@@ -4598,14 +4644,7 @@ function EditorScreen(){
     var current_shape = this.inputting_uml_object_shape;
 
     // 同じオブジェクト内の文字入力可能な矩形を位置順に並べる
-    var text_shapes = [];
-    for ( var key in uml_object.inner_rects ) {
-      var inner_rect = uml_object.inner_rects[key];
-      if ( "rect" == inner_rect.type && inner_rect.has_text ) text_shapes.push( inner_rect );
-    }
-    text_shapes.sort( function( a, b ){
-      return ( a.y - b.y ) || ( a.x - b.x );
-    } );
+    var text_shapes = this._getTextShapesByUmlObject( uml_object );
     var current_index = text_shapes.indexOf( current_shape );
     if ( -1 == current_index ) return false;
     var next_index = ( current_index + ( is_reverse ? -1 : 1 ) + text_shapes.length ) % text_shapes.length;
@@ -7545,6 +7584,9 @@ toggle_panel
 
       // オブジェクトの削除
       if ( this._removeByKey( statuses ) ) return true;
+
+      // ENTERキーで選択中オブジェクトの文字入力を開始
+      if ( this._startInputtingByEnterKey( statuses ) ) return true;
 
       // デバッグ出力
       if ( this._logByShortCutKey( statuses ) ) return true;
