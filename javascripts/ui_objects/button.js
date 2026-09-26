@@ -10,6 +10,7 @@ function Button(){
   Button.prototype.initialize = function( name, style, button_content ){
     Object.getPrototypeOf(Object.getPrototypeOf(this)).initialize.call( this, name, style );
     this.focusable = true;
+    this.disabled = false;
     this.text = null;
 
     if ( "string" == typeof button_content ) {
@@ -74,6 +75,23 @@ function Button(){
   };
 
   //--------------------------------------
+  // 実行不可（グレーアウト）状態の設定
+  //--------------------------------------
+  Button.prototype.setDisabled = function( is_disabled ){
+    is_disabled = !! is_disabled;
+    if ( this.disabled == is_disabled ) return;
+    this.disabled = is_disabled;
+    this._requestDraw();
+  };
+
+  //--------------------------------------
+  // 実行不可（グレーアウト）状態？
+  //--------------------------------------
+  Button.prototype.isDisabled = function(){
+    return this.disabled;
+  };
+
+  //--------------------------------------
   // 入力状態変更イベント（カーソル）
   //--------------------------------------
   Button.prototype.onChangeCursorStatuses = function( statuses, screen ){
@@ -92,6 +110,8 @@ function Button(){
     ) {
       // カーソルアップした？
       if ( statuses.isUpKey( KEYCODE_CURSOR ) ) {
+        // 実行不可の時は入力を消費するだけで、イベントを発生させない
+        if ( this.disabled ) return true;
 
         screen.onObjectEvent( this, "focus", statuses );
         screen.onObjectEvent( this, "click", statuses );
@@ -108,7 +128,9 @@ function Button(){
   Button.prototype.onChangeKeyStatuses = function( statuses, screen ){
     // エンターキー押下はボタン押下とみなす
     if ( statuses.isUpKey( KEYCODE_ENTER ) ) {
-      
+      // 実行不可の時は入力を消費するだけで、イベントを発生させない
+      if ( this.disabled ) return true;
+
       screen.onObjectEvent( this, "focus", statuses );
       screen.onObjectEvent( this, "click", statuses );
       return true;
