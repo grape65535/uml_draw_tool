@@ -24,6 +24,7 @@ i18n_messages["en"] = {
     "filemenu_edit_paste": "paste ( cmd + v )",
     "filemenu_edit_plain_related_paste": "related paste ( alt + down key )",
     "filemenu_edit_arrow_related_paste": "arrow related paste ( cmd + down key )",
+    "filemenu_edit_connect_relation": "connect with relation",
     "filemenu_edit_most_background": "show on most background ( cmd + [ )",
     "filemenu_edit_background": "show on background ( [ )",
     "filemenu_edit_foreground": "show on foreground ( ] )",

@@ -24,6 +24,7 @@ i18n_messages["ja"] = {
     "filemenu_edit_paste": "貼り付け ( cmd + v )",
     "filemenu_edit_plain_related_paste": "関連付けて貼り付け ( alt + ↓ )",
     "filemenu_edit_arrow_related_paste": "矢印で関連付けて貼り付け ( cmd + ↓ )",
+    "filemenu_edit_connect_relation": "関連付け",
     "filemenu_edit_most_background": "最背面へ移動 ( cmd + [ )",
     "filemenu_edit_background": "背面へ移動 ( [ )",
     "filemenu_edit_foreground": "前面へ移動 ( ] )",
