@@ -6381,6 +6381,73 @@ function EditorScreen(){
   // 図形の上に重ならない様に接続位置・分割点の数と位置を最適化する（経路探索は関連付けと同じ）
   //--------------------------------------
   EditorScreen.prototype._optimizeSelectedRelations = function(){
+    var target_relations = this._collectSelectedTargetRelations();
+    if ( 0 == target_relations.length ) return true;
+
+    // 経路の障害物となる図形（グループは末端まで展開）
+    var obstacle_uml_objects = this._collectRouteObstacleUmlObjects();
+
+    var is_optimized = false;
+    for ( var i=0; i<target_relations.length; i++ ) {
+      if ( this._optimizeRelationRoute( target_relations[i], obstacle_uml_objects ) ) is_optimized = true;
+    }
+    if ( ! is_optimized ) return true;
+
+    // 中継点が作り直されたので操作用のトグルを作り直す
+    this._generateDraggableToggles();
+    // 紙サイズの修正
+    this._refreshPaperSize();
+    // データの記録
+    this.data_manager.setData( this.save_data );
+    // 再描画
+    this.screen_manager.requestDraw( this );
+    return true;
+  };
+
+  //--------------------------------------
+  // 選択中の関係線、または選択中の図形同士の間を接続する関係線について、
+  // 接続位置・分割点の位置は変えずに始点と終点を逆転する
+  //--------------------------------------
+  EditorScreen.prototype._reverseSelectedRelations = function(){
+    var target_relations = this._collectSelectedTargetRelations();
+    if ( 0 == target_relations.length ) return true;
+
+    for ( var i=0; i<target_relations.length; i++ ) {
+      this._reverseRelation( target_relations[i] );
+    }
+
+    // 内部線の並びが変わったので操作用のトグルを作り直す
+    this._generateDraggableToggles();
+    // データの記録
+    this.data_manager.setData( this.save_data );
+    // 再描画
+    this.screen_manager.requestDraw( this );
+    return true;
+  };
+
+  //--------------------------------------
+  // 指定の関係線の始点と終点を逆転する
+  //   内部線（接続情報を含む）の並びを逆順にし、始点・終点の種別を入れ替える。
+  //   線端スタイル（lineStartStyle / lineEndStyle）はそのままなので、矢印等は反対側の端に付く。
+  //--------------------------------------
+  EditorScreen.prototype._reverseRelation = function( relation_uml_object ){
+    var inner_lines = relation_uml_object.inner_lines.slice().reverse();
+    for ( var i=0; i<inner_lines.length; i++ ) {
+      inner_lines[i].index = i;
+      if ( 0 == i )                           inner_lines[i].type = "inner-line-start";
+      else if ( inner_lines.length - 1 == i ) inner_lines[i].type = "inner-line-end";
+      else                                    inner_lines[i].type = "inner-line-relay";
+    }
+    relation_uml_object.inner_lines = inner_lines;
+
+    // 関係線の終端矩形を更新
+    relation_uml_object.inner_shapes = this._refreshInnerShape( relation_uml_object, relation_uml_object.type );
+  };
+
+  //--------------------------------------
+  // 選択中の関係線（グループ内を含む）と、始点・終点が共に選択中の図形に接続している関係線を取得する
+  //--------------------------------------
+  EditorScreen.prototype._collectSelectedTargetRelations = function(){
     // 選択中のものを関係線と図形（グループは末端まで展開）に分ける
     var target_relations = [];
     var selected_shape_ids = {};
@@ -6405,26 +6472,7 @@ function EditorScreen(){
       if ( ! selected_shape_ids[ start_line.relation.id ] || ! selected_shape_ids[ end_line.relation.id ] ) continue;
       if ( ! isIncludeArray( target_relations, relation_uml_object ) ) target_relations.push( relation_uml_object );
     }
-    if ( 0 == target_relations.length ) return true;
-
-    // 経路の障害物となる図形（グループは末端まで展開）
-    var obstacle_uml_objects = this._collectRouteObstacleUmlObjects();
-
-    var is_optimized = false;
-    for ( var i=0; i<target_relations.length; i++ ) {
-      if ( this._optimizeRelationRoute( target_relations[i], obstacle_uml_objects ) ) is_optimized = true;
-    }
-    if ( ! is_optimized ) return true;
-
-    // 中継点が作り直されたので操作用のトグルを作り直す
-    this._generateDraggableToggles();
-    // 紙サイズの修正
-    this._refreshPaperSize();
-    // データの記録
-    this.data_manager.setData( this.save_data );
-    // 再描画
-    this.screen_manager.requestDraw( this );
-    return true;
+    return target_relations;
   };
 
   //--------------------------------------
@@ -7910,6 +7958,7 @@ toggle_panel
   <div style="width:280;  border_width_bottom:1;  border_color:#909090;  margin:8 0 12 0;"></div>
   <button id='filemenu_edit_connect_relation'>${ i18n.t( "ui.filemenu_edit_connect_relation" ) }</button><br/>
   <button id='filemenu_edit_optimize_relation'>${ i18n.t( "ui.filemenu_edit_optimize_relation" ) }</button><br/>
+  <button id='filemenu_edit_reverse_relation'>${ i18n.t( "ui.filemenu_edit_reverse_relation" ) }</button><br/>
   <div style="width:280;  border_width_bottom:1;  border_color:#909090;  margin:8 0 12 0;"></div>
   <button id='filemenu_edit_most_background'>${ i18n.t( "ui.filemenu_edit_most_background" ) }</button><br/>
   <button id='filemenu_edit_background'>${ i18n.t( "ui.filemenu_edit_background" ) }</button><br/>
@@ -7942,6 +7991,7 @@ toggle_panel
   <div style="width:187;  border_width_bottom:1;  border_color:#909090;  margin:8 0 12 0;"></div>
   <button id='contextmenu_connect_relation'>${ i18n.t( "ui.contextmenu_connect_relation" ) }</button><br/>
   <button id='contextmenu_optimize_relation'>${ i18n.t( "ui.contextmenu_optimize_relation" ) }</button><br/>
+  <button id='contextmenu_reverse_relation'>${ i18n.t( "ui.contextmenu_reverse_relation" ) }</button><br/>
   <div style="width:187;  border_width_bottom:1;  border_color:#909090;  margin:8 0 12 0;"></div>
   <button id='contextmenu_most_background'>${ i18n.t( "ui.contextmenu_most_background" ) }</button><br/>
   <button id='contextmenu_background'>${ i18n.t( "ui.contextmenu_background" ) }</button><br/>
@@ -8375,6 +8425,12 @@ toggle_panel
         case "filemenu_edit_optimize_relation":
         case "contextmenu_optimize_relation":
           this._optimizeSelectedRelations();
+          break;
+
+        // 選択中の関係線、または選択中の図形同士を接続する関係線の始点と終点を逆転
+        case "filemenu_edit_reverse_relation":
+        case "contextmenu_reverse_relation":
+          this._reverseSelectedRelations();
           break;
 
         // 最背面に表示
