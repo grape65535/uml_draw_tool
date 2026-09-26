@@ -36,6 +36,9 @@
 <script src="./javascripts/screen_manager.js?v=1.11.0"></script>
 <script src="./javascripts/file_manager.js?v=1.11.0"></script>
 <script src="./javascripts/data_manager.js?v=1.11.0"></script>
+<!-- UI表示用文言（言語ごと。i18n_manager.jsより前に読み込む） -->
+<script src="./javascripts/i18n/ja.js?v=1.11.0"></script>
+<script src="./javascripts/i18n/en.js?v=1.11.0"></script>
 <script src="./javascripts/i18n_manager.js?v=1.11.0"></script>
 <script src="./javascripts/storage_manager.js?v=1.11.0"></script>
 <script src="./javascripts/html5_canvas_factory.js?v=1.11.0"></script>
@@ -107,16 +110,14 @@ body
 <script type="text/javascript">
 $(function(){
 
-    // UI表示用文言の読み込み後にアプリを起動する
-    i18n.load( "./i18n.json?v=1.11.0", function(){
-      i18n.applyDocument();
+    // HTML文書（タイトル・lang属性）に表示言語を反映する
+    i18n.applyDocument();
 
-      $("#loading").remove();
+    $("#loading").remove();
 
-      var canvas_element = $("#fix-screen-size");
-      var canvas_if = new Application();
-      new HTML5CanvasFactory().create( $(canvas_element.get(0)), canvas_if );
-    } );
+    var canvas_element = $("#fix-screen-size");
+    var canvas_if = new Application();
+    new HTML5CanvasFactory().create( $(canvas_element.get(0)), canvas_if );
 
 } );
 </script>

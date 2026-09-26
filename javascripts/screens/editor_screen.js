@@ -1285,7 +1285,7 @@ function EditorScreen(){
 
     // UI用のHTML生成（表示順序を固定する。paramsに存在するキーのみ描画する）
     var ordered_keys = [ "fontSize", "nameAlign", "textAlign", "verticalAlign", "wordBreak", "textColor", "pathStyle", "lineStyle", "lineStartStyle", "lineEndStyle", "lineWidth", "lineColor", "backgroundColor" ];
-    // 選択肢（option要素）のHTML生成。表示名は i18n.json の options から取得する
+    // 選択肢（option要素）のHTML生成。表示名は 文言ファイル（javascripts/i18n/*.js）の options から取得する
     var buildOption = function( key, value ){
       return `<option value='${ value }' ${ value == params[ key ] ? "selected" : "" }>${ i18n.t( "options." + value ) }</option>`;
     };
@@ -2730,7 +2730,7 @@ function EditorScreen(){
   //--------------------------------------
   EditorScreen.prototype._buildColorOptions = function( selected_value, include_white, include_transparent ){
     // 表示順: (white), gray, black, pink, red, brown, light_green, green, dark_green, sky_blue, blue, dark_blue, yellow, purple, (transparent)
-    // 表示名は i18n.json の colors から取得する（内部値 value は darkgreen 等で不変）
+    // 表示名は 文言ファイル（javascripts/i18n/*.js）の colors から取得する（内部値 value は darkgreen 等で不変）
     var colors = [];
     if ( include_white ) colors.push( "white" );
     colors = colors.concat( [
@@ -6975,7 +6975,7 @@ function EditorScreen(){
   };
 
   //--------------------------------------
-  // 言語選択メニューのHTML生成（i18n.jsonに定義された言語ごとに項目を作る）
+  // 言語選択メニューのHTML生成（文言ファイルが登録された言語ごとに項目を作る）
   //--------------------------------------
   EditorScreen.prototype._buildLanguageMenuHtml = function(){
     var languages = i18n.supportedLanguages();
@@ -7002,7 +7002,7 @@ function EditorScreen(){
   // 現在の表示言語をUI全体に反映する
   //--------------------------------------
   EditorScreen.prototype._applyLanguage = function(){
-    // メニューなど、i18n.json の ui に定義された文言を持つオブジェクト
+    // メニューなど、文言ファイルの ui に定義された文言を持つオブジェクト
     var ui_keys = i18n.keys( "ui" );
     for ( var i=0; i<ui_keys.length; i++ ) {
       var object = this.findObjectByName( ui_keys[i] );

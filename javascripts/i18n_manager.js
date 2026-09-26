@@ -1,6 +1,8 @@
 /*------------------------------------------------------------------------------
   多言語対応（UI表示用文言の管理）
-    文言は外部ファイル（i18n.json）に言語ごとに定義する。
+    文言は言語ごとの外部ファイル（javascripts/i18n/<言語コード>.js）に定義する。
+    file:// で開いた場合（サーバ無しでの利用）でも動作するよう、XHRではなく
+    script要素で読み込み、グローバル変数 i18n_messages 経由で受け取る。
     表示言語は、表示メニューで選択された言語（localStorageに記録）を優先し、
     未選択の時は navigator.language から判定する（日本語以外は英語とする）。
 ------------------------------------------------------------------------------*/
@@ -14,41 +16,12 @@ function I18nManager(){
 
   //--------------------------------------
   // 初期化
+  //   messages ... 言語コードをキーとした文言（javascripts/i18n/*.js で登録した i18n_messages）
   //--------------------------------------
-  I18nManager.prototype.initialize = function(){
-    this.messages = {};
-    this.language = this.DEFAULT_LANGUAGE;
+  I18nManager.prototype.initialize = function( messages ){
+    this.messages = messages || {};
+    this.language = this.detectLanguage();
     return this;
-  };
-
-  //--------------------------------------
-  // 文言ファイルの読み込み
-  //   読み込み完了後（失敗時も）にcallbackを呼び出す
-  //--------------------------------------
-  I18nManager.prototype.load = function( url, callback ){
-    var request = new XMLHttpRequest();
-    request.open( "GET", url, true );
-    request.onload = function(){
-      if ( 200 == request.status ) {
-        try {
-          this.messages = JSON.parse( request.responseText );
-        }
-        catch( e ) {
-          console.error( `Cannot parse i18n file. : ${ url } : ${ e }` );
-        }
-      }
-      else {
-        console.error( `Cannot get i18n file. : ${ url } : status( ${ request.status } )` );
-      }
-      this.language = this.detectLanguage();
-      callback();
-    }.bind(this);
-    request.onerror = function(){
-      console.error( `XHR error. : ${ url }` );
-      this.language = this.detectLanguage();
-      callback();
-    }.bind(this);
-    request.send( null );
   };
 
   //--------------------------------------
@@ -156,4 +129,5 @@ function I18nManager(){
 I18nManager();
 
 // UI表示用文言の管理（全画面共通）
-var i18n = ( new I18nManager() ).initialize();
+//   言語ごとの文言ファイル（javascripts/i18n/*.js）は、このファイルより前に読み込むこと
+var i18n = ( new I18nManager() ).initialize( "undefined" != typeof i18n_messages ? i18n_messages : {} );
