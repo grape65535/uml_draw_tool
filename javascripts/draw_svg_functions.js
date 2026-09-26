@@ -6,8 +6,14 @@
 //   Canvasは textBaseline = "top" で描画しているため、SVGではベースラインをずらして上端を揃える
 var SVG_TEXT_ASCENT_RATE = 0.88;
 
-// SVGで利用するフォント（フォントは埋め込まないので、閲覧環境にあるフォントへフォールバックする）
-var SVG_FONT_FAMILY = "ipag, 'IPAGothic', 'IPAゴシック', 'Hiragino Kaku Gothic ProN', 'Yu Gothic', Meiryo, sans-serif";
+// SVGに埋め込むフォントのfont-family名
+var SVG_EMBED_FONT_NAME = "UmlDrawToolEmbedFont";
+
+// SVGで利用するフォント（埋め込みフォントが使えない閲覧環境では、環境にあるフォントへフォールバックする）
+var SVG_FONT_FAMILY = `'${ SVG_EMBED_FONT_NAME }', ipag, 'IPAGothic', 'IPAゴシック', 'Hiragino Kaku Gothic ProN', 'Yu Gothic', Meiryo, sans-serif`;
+
+// 埋め込み用フォントの読込みキャッシュ（URL → ArrayBuffer）
+var _svg_font_buffer_cache = {};
 
 //--------------------------------------
 // SVGの初期化
@@ -19,6 +25,8 @@ function initializeSvgContext( width, height, background_color ){
     elements:   [],
     defs:       [],
     clip_count: 0,
+    font_buffer: null,
+    used_text:  [],
     params:     {
       opacity:  1.0,
       line:     {
@@ -35,14 +43,40 @@ function initializeSvgContext( width, height, background_color ){
 }
 
 //--------------------------------------
+// 埋め込み用フォント（TTF）を読込む
+//   読込んだフォントはキャッシュし、2回目以降は通信しない。取得できなかった場合はnullを返す
+//--------------------------------------
+function loadSvgFont( font_url, callback ){
+  if ( _svg_font_buffer_cache[ font_url ] ) {
+    callback( _svg_font_buffer_cache[ font_url ] );
+    return;
+  }
+  _getAjaxFileAsArrayBuffer( null, font_url, function( font_buffer ){
+    if ( font_buffer ) _svg_font_buffer_cache[ font_url ] = font_buffer;
+    callback( font_buffer );
+  } );
+}
+
+//--------------------------------------
+// 埋め込むフォントを設定する
+//   SVG生成時に、描画した文字だけを抜き出したサブセットをbase64化して<style>の@font-faceに埋め込む
+//--------------------------------------
+function setSvgEmbedFont( context, font_buffer ){
+  context.font_buffer = font_buffer || null;
+}
+
+//--------------------------------------
 // SVGを生成（文字列で取得）
 //--------------------------------------
 function saveSvgAsString( context ){
+  var font_face = _createSvgFontFace( context );
+
   var svg = [];
   svg.push( '<?xml version="1.0" encoding="UTF-8"?>' );
   svg.push( `<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" version="1.1" width="${ context.width }" height="${ context.height }" viewBox="0 0 ${ context.width } ${ context.height }">` );
-  if ( 0 < context.defs.length ) {
+  if ( 0 < context.defs.length || font_face ) {
     svg.push( "<defs>" );
+    if ( font_face ) svg.push( `<style type="text/css">${ font_face }</style>` );
     svg.push( context.defs.join("\n") );
     svg.push( "</defs>" );
   }
@@ -206,6 +240,7 @@ function drawSvgEllipse( context, x, y, radius_x, radius_y, color, is_fill_rect 
 function drawSvgText( context, text, x, y, color, font_size ){
   if ( ! text || "string" != typeof text || 0 == text.length ) return;
 
+  context.used_text.push( text );
   var baseline_y = y + Math.round( font_size * SVG_TEXT_ASCENT_RATE );
   context.elements.push( `<text x="${ x }" y="${ baseline_y }"${ _getSvgTextAttributes( context, color, font_size ) }>${ _escapeSvgText( text ) }</text>` );
 }
@@ -216,6 +251,7 @@ function drawSvgText( context, text, x, y, color, font_size ){
 function drawSvgVerticalText( context, text, x, y, color, font_size ){
   if ( ! text || "string" != typeof text || 0 == text.length ) return;
 
+  context.used_text.push( text );
   var text_width = getTextWidth( text, font_size );
   var baseline_x = x + Math.round( font_size * SVG_TEXT_ASCENT_RATE );
   context.elements.push( `<text transform="translate(${ baseline_x },${ y + text_width }) rotate(-90)"${ _getSvgTextAttributes( context, color, font_size ) }>${ _escapeSvgText( text ) }</text>` );
@@ -235,6 +271,24 @@ function drawSvgImageDataUrl( context, data_url, x, y, width, height ){
 /*------------------------------------------------------------------------------
   Private functions
 ------------------------------------------------------------------------------*/
+
+//--------------------------------------
+// 描画した文字だけを含むサブセットフォントの@font-face定義を生成する（埋め込めない時はnull）
+//--------------------------------------
+function _createSvgFontFace( context ){
+  if ( ! context.font_buffer || 0 == context.used_text.length ) return null;
+
+  var subset = null;
+  try {
+    subset = createTtfSubset( context.font_buffer, context.used_text.join("") );
+  }
+  catch ( e ) {
+    console.log( `Cannot create font subset. : ${ e }` );
+  }
+  if ( ! subset ) return null;
+
+  return `@font-face{font-family:'${ SVG_EMBED_FONT_NAME }';src:url(data:font/ttf;base64,${ uint8ArrayToBase64( subset ) }) format('truetype');}`;
+}
 
 //--------------------------------------
 // 線の属性文字列を取得する
