@@ -1285,85 +1285,101 @@ function EditorScreen(){
 
     // UI用のHTML生成（表示順序を固定する。paramsに存在するキーのみ描画する）
     var ordered_keys = [ "fontSize", "nameAlign", "textAlign", "verticalAlign", "wordBreak", "textColor", "pathStyle", "lineStyle", "lineStartStyle", "lineEndStyle", "lineWidth", "lineColor", "backgroundColor" ];
+    // パラメータの表示名
+    var key_labels = {
+      fontSize:         "文字サイズ",
+      nameAlign:        "名前の横位置",
+      textAlign:        "文字の横位置",
+      verticalAlign:    "文字の縦位置",
+      wordBreak:        "折り返し",
+      textColor:        "文字色",
+      pathStyle:        "線の経路",
+      lineStyle:        "線種",
+      lineStartStyle:   "始点の形",
+      lineEndStyle:     "終点の形",
+      lineWidth:        "線の太さ",
+      lineColor:        "線の色",
+      backgroundColor:  "背景色",
+    };
     var html_string = "";
     for ( var ki=0; ki<ordered_keys.length; ki++ ) {
       var key = ordered_keys[ ki ];
       if ( ! params.hasOwnProperty( key ) ) continue;
       switch ( key ) {
       case "fontSize":
-        html_string += `<div>${ key }<input id='input_${ key }' value='${ ( null != params[ key ] ? params[ key ] : "" ) }' /></div>`;
+        html_string += `<div>${ key_labels[ key ] }<input id='input_${ key }' value='${ ( null != params[ key ] ? params[ key ] : "" ) }' /></div>`;
         break;
 
       case "nameAlign":
       case "textAlign":
         var options = "";
         if ( ! params[ key ] ) options += "<option value=''></option>";
-        options += `<option value='left'   ${  "left"  == params[ key ] ? "selected" : "" }>left</option>`;
-        options += `<option value='center' ${ "center" == params[ key ] ? "selected" : "" }>center</option>`;
-        options += `<option value='right'  ${ "right"  == params[ key ] ? "selected" : "" }>right</option>`;
-        html_string += `<div>${ key }<br/><select id='input_${ key }'>${ options }</select></div>`;
+        options += `<option value='left'   ${  "left"  == params[ key ] ? "selected" : "" }>左寄せ</option>`;
+        options += `<option value='center' ${ "center" == params[ key ] ? "selected" : "" }>中央</option>`;
+        options += `<option value='right'  ${ "right"  == params[ key ] ? "selected" : "" }>右寄せ</option>`;
+        html_string += `<div>${ key_labels[ key ] }<br/><select id='input_${ key }'>${ options }</select></div>`;
         break;
 
       case "verticalAlign":
         var options = "";
         if ( ! params[ key ] ) options += "<option value=''></option>";
-        options += `<option value='top'    ${ "top"    == params[ key ] ? "selected" : "" }>top</option>`;
-        options += `<option value='center' ${ "center" == params[ key ] ? "selected" : "" }>center</option>`;
-        options += `<option value='bottom' ${ "bottom" == params[ key ] ? "selected" : "" }>bottom</option>`;
-        html_string += `<div>${ key }<br/><select id='input_${ key }'>${ options }</select></div>`;
+        options += `<option value='top'    ${ "top"    == params[ key ] ? "selected" : "" }>上寄せ</option>`;
+        options += `<option value='center' ${ "center" == params[ key ] ? "selected" : "" }>中央</option>`;
+        options += `<option value='bottom' ${ "bottom" == params[ key ] ? "selected" : "" }>下寄せ</option>`;
+        html_string += `<div>${ key_labels[ key ] }<br/><select id='input_${ key }'>${ options }</select></div>`;
         break;
 
       case "wordBreak":
         var options = "";
         if ( ! params[ key ] ) options += "<option value=''></option>";
-        options += `<option value='normal' ${ "normal" == params[ key ] ? "selected" : "" }>normal</option>`;
-        options += `<option value='break'  ${ "break"  == params[ key ] ? "selected" : "" }>break</option>`;
-        html_string += `<div>${ key }<br/><select id='input_${ key }'>${ options }</select></div>`;
+        options += `<option value='normal' ${ "normal" == params[ key ] ? "selected" : "" }>単語単位</option>`;
+        options += `<option value='break'  ${ "break"  == params[ key ] ? "selected" : "" }>文字単位</option>`;
+        html_string += `<div>${ key_labels[ key ] }<br/><select id='input_${ key }'>${ options }</select></div>`;
         break;
 
       case "pathStyle":
         var options = "";
         if ( ! params[ key ] ) options += "<option value=''></option>";
-        options += `<option value='line'  ${  "line" == params[ key ] ? "selected" : "" }>line</option>`;
-        options += `<option value='curve' ${ "curve" == params[ key ] ? "selected" : "" }>curve</option>`;
-        html_string += `<div>${ key }<br/><select id='input_${ key }'>${ options }</select></div>`;
+        options += `<option value='line'  ${  "line" == params[ key ] ? "selected" : "" }>直線</option>`;
+        options += `<option value='curve' ${ "curve" == params[ key ] ? "selected" : "" }>曲線</option>`;
+        html_string += `<div>${ key_labels[ key ] }<br/><select id='input_${ key }'>${ options }</select></div>`;
         break;
 
       case "lineStyle":
         var options = "";
         if ( ! params[ key ] ) options += "<option value=''></option>";
-        options += `<option value='solid'  ${  "solid" == params[ key ] ? "selected" : "" }>solid</option>`;
-        options += `<option value='dashed' ${ "dashed" == params[ key ] ? "selected" : "" }>dashed</option>`;
-        options += `<option value='dotted' ${ "dotted" == params[ key ] ? "selected" : "" }>dotted</option>`;
-        html_string += `<div>${ key }<br/><select id='input_${ key }'>${ options }</select></div>`;
+        options += `<option value='solid'  ${  "solid" == params[ key ] ? "selected" : "" }>実線</option>`;
+        options += `<option value='dashed' ${ "dashed" == params[ key ] ? "selected" : "" }>破線</option>`;
+        options += `<option value='dotted' ${ "dotted" == params[ key ] ? "selected" : "" }>点線</option>`;
+        html_string += `<div>${ key_labels[ key ] }<br/><select id='input_${ key }'>${ options }</select></div>`;
         break;
 
       case "lineStartStyle":
       case "lineEndStyle":
         var options = "";
         if ( ! params[ key ] ) options += "<option value=''></option>";
-        options += `<option value='none'                 ${                 "none" == params[ key ] ? "selected" : "" }>none</option>`;
-        options += `<option value='arrow'                ${                "arrow" == params[ key ] ? "selected" : "" }>arrow</option>`;
-        options += `<option value='check_arrow'          ${          "check_arrow" == params[ key ] ? "selected" : "" }>check-arrow</option>`;
-        options += `<option value='triangle_arrow'       ${       "triangle_arrow" == params[ key ] ? "selected" : "" }>triangle-arrow</option>`;
-        options += `<option value='triangle_arrow_black' ${ "triangle_arrow_black" == params[ key ] ? "selected" : "" }>triangle-arrow(black)</option>`;
-        options += `<option value='rhombus'              ${              "rhombus" == params[ key ] ? "selected" : "" }>rhombus</option>`;
-        options += `<option value='rhombus_black'        ${        "rhombus_black" == params[ key ] ? "selected" : "" }>rhombus(black)</option>`;
-        options += `<option value='circle'               ${               "circle" == params[ key ] ? "selected" : "" }>circle</option>`;
-        options += `<option value='circle_black'         ${         "circle_black" == params[ key ] ? "selected" : "" }>circle(black)</option>`;
-        html_string += `<div>${ key }<br/><select id='input_${ key }'>${ options }</select></div>`;
+        options += `<option value='none'                 ${                 "none" == params[ key ] ? "selected" : "" }>なし</option>`;
+        options += `<option value='arrow'                ${                "arrow" == params[ key ] ? "selected" : "" }>矢印</option>`;
+        options += `<option value='check_arrow'          ${          "check_arrow" == params[ key ] ? "selected" : "" }>チェック矢印</option>`;
+        options += `<option value='triangle_arrow'       ${       "triangle_arrow" == params[ key ] ? "selected" : "" }>三角矢印</option>`;
+        options += `<option value='triangle_arrow_black' ${ "triangle_arrow_black" == params[ key ] ? "selected" : "" }>三角矢印(黒)</option>`;
+        options += `<option value='rhombus'              ${              "rhombus" == params[ key ] ? "selected" : "" }>ひし形</option>`;
+        options += `<option value='rhombus_black'        ${        "rhombus_black" == params[ key ] ? "selected" : "" }>ひし形(黒)</option>`;
+        options += `<option value='circle'               ${               "circle" == params[ key ] ? "selected" : "" }>円</option>`;
+        options += `<option value='circle_black'         ${         "circle_black" == params[ key ] ? "selected" : "" }>円(黒)</option>`;
+        html_string += `<div>${ key_labels[ key ] }<br/><select id='input_${ key }'>${ options }</select></div>`;
         break;
 
       case "lineColor":
-        html_string += `<div>${ key }<br/><select id='input_${ key }'>${ this._buildColorOptions( params[ key ], true, false ) }</select></div>`;
+        html_string += `<div>${ key_labels[ key ] }<br/><select id='input_${ key }'>${ this._buildColorOptions( params[ key ], true, false ) }</select></div>`;
         break;
 
       case "textColor":
-        html_string += `<div>${ key }<br/><select id='input_${ key }'>${ this._buildColorOptions( params[ key ], true, false ) }</select></div>`;
+        html_string += `<div>${ key_labels[ key ] }<br/><select id='input_${ key }'>${ this._buildColorOptions( params[ key ], true, false ) }</select></div>`;
         break;
 
       case "backgroundColor":
-        html_string += `<div>${ key }<br/><select id='input_${ key }'>${ this._buildColorOptions( params[ key ], true, true ) }</select></div>`;
+        html_string += `<div>${ key_labels[ key ] }<br/><select id='input_${ key }'>${ this._buildColorOptions( params[ key ], true, true ) }</select></div>`;
         break;
 
       case "lineWidth":
@@ -1372,7 +1388,7 @@ function EditorScreen(){
         for ( var w=1; w<=5; w++ ) {
           options += `<option value='${ w }' ${ w == params[ key ] ? "selected" : "" }>${ w }px</option>`;
         }
-        html_string += `<div>${ key }<br/><select id='input_${ key }'>${ options }</select></div>`;
+        html_string += `<div>${ key_labels[ key ] }<br/><select id='input_${ key }'>${ options }</select></div>`;
         break;
       }
     }
@@ -2726,25 +2742,25 @@ function EditorScreen(){
   //--------------------------------------
   EditorScreen.prototype._buildColorOptions = function( selected_value, include_white, include_transparent ){
     // 表示順: (white), gray, black, pink, red, brown, light_green, green, dark_green, sky_blue, blue, dark_blue, yellow, purple, (transparent)
-    // 表示ラベルの空白はプルダウン表示の折り返し対策でアンダースコアにする（内部値 value は darkgreen 等で不変）
+    // 表示ラベルは日本語（内部値 value は darkgreen 等で不変）
     var colors = [];
-    if ( include_white ) colors.push( [ "white", "white" ] );
+    if ( include_white ) colors.push( [ "white", "白" ] );
     colors = colors.concat( [
-      [ "gray",       "gray" ],
-      [ "black",      "black" ],
-      [ "pink",       "pink" ],
-      [ "red",        "red" ],
-      [ "brown",      "brown" ],
-      [ "lightgreen", "light_green" ],
-      [ "green",      "green" ],
-      [ "darkgreen",  "dark_green" ],
-      [ "skyblue",    "sky_blue" ],
-      [ "blue",       "blue" ],
-      [ "darkblue",   "dark_blue" ],
-      [ "yellow",     "yellow" ],
-      [ "purple",     "purple" ]
+      [ "gray",       "灰色" ],
+      [ "black",      "黒" ],
+      [ "pink",       "ピンク" ],
+      [ "red",        "赤" ],
+      [ "brown",      "茶色" ],
+      [ "lightgreen", "黄緑" ],
+      [ "green",      "緑" ],
+      [ "darkgreen",  "深緑" ],
+      [ "skyblue",    "水色" ],
+      [ "blue",       "青" ],
+      [ "darkblue",   "紺" ],
+      [ "yellow",     "黄色" ],
+      [ "purple",     "紫" ]
     ] );
-    if ( include_transparent ) colors.push( [ "transparent", "transparent" ] );
+    if ( include_transparent ) colors.push( [ "transparent", "透明" ] );
     var options = "";
     // 複数選択で値が混在している場合は空の選択肢を表示する
     if ( ! selected_value ) options += "<option value=''></option>";
@@ -7073,9 +7089,9 @@ toggle_panel
 <!-- ヘッダ -->
 <header>
   <div class='left'>
-    <button id='filemenu_file'>File</button>
-    <button id='filemenu_edit'>Edit</button>
-    <button id='filemenu_view'>View</button>
+    <button id='filemenu_file'>ファイル</button>
+    <button id='filemenu_edit'>編集</button>
+    <button id='filemenu_view'>表示</button>
   </div>
   <div class='right'>${ this.current_version }</div>
 </header>
@@ -7119,56 +7135,56 @@ toggle_panel
 </div>
 <!-- ファイルメニュー -->
 <toggle_panel id='filemenu_file_panel'>
-  <button id='filemenu_file_save_json'>save as JSON ( cmd + s )</button><br/>
-  <button id='filemenu_file_save_pdf'>save as PDF</button><br/>
-  <button id='filemenu_file_save_svg'>save as SVG</button><br/>
-  <button id='filemenu_file_save_svg_embed_json'>save as SVG embed JSON</button><br/>
+  <button id='filemenu_file_save_json'>JSON形式で保存 ( cmd + s )</button><br/>
+  <button id='filemenu_file_save_pdf'>PDF形式で保存</button><br/>
+  <button id='filemenu_file_save_svg'>SVG形式で保存</button><br/>
+  <button id='filemenu_file_save_svg_embed_json'>SVG形式（JSON埋め込み）で保存</button><br/>
 </toggle_panel>
 <!-- 編集メニュー -->
 <toggle_panel id='filemenu_edit_panel'>
-  <button id='filemenu_edit_undo'>undo ( cmd + z )</button><br/>
-  <button id='filemenu_edit_redo'>redo ( cmd + shift + z )</button><br/>
+  <button id='filemenu_edit_undo'>元に戻す ( cmd + z )</button><br/>
+  <button id='filemenu_edit_redo'>やり直す ( cmd + shift + z )</button><br/>
   <div style="width:280;  border_width_bottom:1;  border_color:#909090;  margin:8 0 12 0;"></div>
-  <button id='filemenu_edit_cut'>cut ( cmd + x )</button><br/>
-  <button id='filemenu_edit_copy'>copy ( cmd + c )</button><br/>
-  <button id='filemenu_edit_paste'>paste ( cmd + v )</button><br/>
-  <button id='filemenu_edit_plain_related_paste'>related paste ( alt + down key )</button><br/>
-  <button id='filemenu_edit_arrow_related_paste'>arrow related paste ( cmd + down key )</button><br/>
+  <button id='filemenu_edit_cut'>切り取り ( cmd + x )</button><br/>
+  <button id='filemenu_edit_copy'>コピー ( cmd + c )</button><br/>
+  <button id='filemenu_edit_paste'>貼り付け ( cmd + v )</button><br/>
+  <button id='filemenu_edit_plain_related_paste'>関連付けて貼り付け ( alt + ↓ )</button><br/>
+  <button id='filemenu_edit_arrow_related_paste'>矢印で関連付けて貼り付け ( cmd + ↓ )</button><br/>
   <div style="width:280;  border_width_bottom:1;  border_color:#909090;  margin:8 0 12 0;"></div>
-  <button id='filemenu_edit_most_background'>show on most background ( cmd + [ )</button><br/>
-  <button id='filemenu_edit_background'>show on background ( [ )</button><br/>
-  <button id='filemenu_edit_foreground'>show on foreground ( ] )</button><br/>
-  <button id='filemenu_edit_most_foreground'>show on most foreground ( cmd + ] )</button><br/>
+  <button id='filemenu_edit_most_background'>最背面へ移動 ( cmd + [ )</button><br/>
+  <button id='filemenu_edit_background'>背面へ移動 ( [ )</button><br/>
+  <button id='filemenu_edit_foreground'>前面へ移動 ( ] )</button><br/>
+  <button id='filemenu_edit_most_foreground'>最前面へ移動 ( cmd + ] )</button><br/>
   <div style="width:280;  border_width_bottom:1;  border_color:#909090;  margin:8 0 12 0;"></div>
-  <button id='filemenu_edit_group'>make group ( cmd + g )</button><br/>
-  <button id='filemenu_edit_release_group'>release group ( cmd + shift + g )</button><br/>
+  <button id='filemenu_edit_group'>グループ化 ( cmd + g )</button><br/>
+  <button id='filemenu_edit_release_group'>グループ解除 ( cmd + shift + g )</button><br/>
   <div style="width:280;  border_width_bottom:1;  border_color:#909090;  margin:8 0 12 0;"></div>
-  <button id='filemenu_edit_set_default_params'>set as default params ( cmd + d )</button><br/>
+  <button id='filemenu_edit_set_default_params'>既定のパラメータに設定 ( cmd + d )</button><br/>
 </toggle_panel>
 <!-- 表示メニュー -->
 <toggle_panel id='filemenu_view_panel'>
-  <button id='filemenu_view_50'>zoom 50%</button><br/>
-  <button id='filemenu_view_75'>zoom 74%</button><br/>
-  <button id='filemenu_view_100'>zoom 100%</button><br/>
-  <button id='filemenu_view_125'>zoom 125%</button><br/>
-  <button id='filemenu_view_150'>zoom 150%</button><br/>
-  <button id='filemenu_view_200'>zoom 200%</button><br/>
+  <button id='filemenu_view_50'>50%で表示</button><br/>
+  <button id='filemenu_view_75'>75%で表示</button><br/>
+  <button id='filemenu_view_100'>100%で表示</button><br/>
+  <button id='filemenu_view_125'>125%で表示</button><br/>
+  <button id='filemenu_view_150'>150%で表示</button><br/>
+  <button id='filemenu_view_200'>200%で表示</button><br/>
 </toggle_panel>
 <!-- 右クリックメニュー -->
 <toggle_panel id='context_menu_panel'>
-  <button id='contextmenu_cut'>cut</button><br/>
-  <button id='contextmenu_copy'>copy</button><br/>
-  <button id='contextmenu_paste'>paste</button><br/>
-  <button id='contextmenu_plain_related_paste'>related paste</button><br/>
-  <button id='contextmenu_arrow_related_paste'>arrow related paste</button><br/>
+  <button id='contextmenu_cut'>切り取り</button><br/>
+  <button id='contextmenu_copy'>コピー</button><br/>
+  <button id='contextmenu_paste'>貼り付け</button><br/>
+  <button id='contextmenu_plain_related_paste'>関連付けて貼り付け</button><br/>
+  <button id='contextmenu_arrow_related_paste'>矢印で関連付けて貼り付け</button><br/>
   <div style="width:187;  border_width_bottom:1;  border_color:#909090;  margin:8 0 12 0;"></div>
-  <button id='contextmenu_most_background'>show on most background</button><br/>
-  <button id='contextmenu_background'>show on background</button><br/>
-  <button id='contextmenu_foreground'>show on foreground</button><br/>
-  <button id='contextmenu_most_foreground'>show on most foreground</button><br/>
+  <button id='contextmenu_most_background'>最背面へ移動</button><br/>
+  <button id='contextmenu_background'>背面へ移動</button><br/>
+  <button id='contextmenu_foreground'>前面へ移動</button><br/>
+  <button id='contextmenu_most_foreground'>最前面へ移動</button><br/>
   <div style="width:187;  border_width_bottom:1;  border_color:#909090;  margin:8 0 12 0;"></div>
-  <button id='contextmenu_group'>make group</button><br/>
-  <button id='contextmenu_release_group'>release group</button><br/>
+  <button id='contextmenu_group'>グループ化</button><br/>
+  <button id='contextmenu_release_group'>グループ解除</button><br/>
 </toggle_panel>
 `
     );
