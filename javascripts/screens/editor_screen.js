@@ -4916,6 +4916,10 @@ function EditorScreen(){
         this._selectUmlObjectByKey( uml_object_key );
       }
 
+      // 右クリックした図形（の根）を記録する（右クリックメニューからの関連付けの中心にする）
+      var context_root_uml_object = this._getRootUmlObjectByKey( uml_object_key );
+      this.context_menu_root_uml_object_id = context_root_uml_object ? context_root_uml_object.id : null;
+
       // 右クリックメニューをカーソル位置に表示する（canvasへフレームワークで描画）
       var screen_cursor_position = statuses.getCursorPosition();
       var panel = this.findObjectByName( "context_menu_panel" );
@@ -6286,8 +6290,9 @@ function EditorScreen(){
   // 選択中の図形の最初に選択した図形と、それ以降に選択した図形との間を関係線で接続する
   //   関係線は可能な限り図形の上を通らない経路（接続する辺・中継点）を選ぶ
   //   既に関係線で接続されている図形同士の場合は、新たに作成せずに既存の関係線の経路を最適化する
+  //   base_root_uml_object_id を指定した場合は、選択順に関わらずその図形（根のID）を中心（始点側）にする
   //--------------------------------------
-  EditorScreen.prototype._connectSelectedUmlObjectsByRelation = function(){
+  EditorScreen.prototype._connectSelectedUmlObjectsByRelation = function( base_root_uml_object_id ){
     // 関係線は接続対象にしない
     var selected_uml_objects = this._selectedUmlObjectsBySelectOrder();
     var target_uml_objects = [];
@@ -6298,6 +6303,17 @@ function EditorScreen(){
 
     // 2つ以上の図形が選択されていなければ何もしない
     if ( 2 > target_uml_objects.length ) return true;
+
+    // 中心とする図形の指定があれば先頭に移動する
+    if ( base_root_uml_object_id ) {
+      for ( var i=0; i<target_uml_objects.length; i++ ) {
+        var root_uml_object = this._getRootUmlObjectByKey( this._getFullUmlObjectKey( target_uml_objects[i] ) );
+        if ( root_uml_object && root_uml_object.id == base_root_uml_object_id ) {
+          target_uml_objects.unshift( target_uml_objects.splice( i, 1 )[0] );
+          break;
+        }
+      }
+    }
 
     // 経路の障害物となる図形（グループは末端まで展開）
     var obstacle_uml_objects = this._collectRouteObstacleUmlObjects();
@@ -7550,6 +7566,8 @@ function EditorScreen(){
     this.select_uml_object_ids = [];
     // 選択した順序（ルートのID。select_uml_object_idsは描画優先順にソートされるため別途記録する）
     this.select_order_root_ids = [];
+    // 右クリックメニューを表示した時に右クリックした図形（根のID）
+    this.context_menu_root_uml_object_id = null;
 
     // 選択中のツール
     this.select_tool_name = "tool_button_cursor";
@@ -8345,8 +8363,12 @@ toggle_panel
 
         // 選択中の図形を関係線で関連付け（最初に選択した図形と、それ以降の図形を接続）
         case "filemenu_edit_connect_relation":
-        case "contextmenu_connect_relation":
           this._connectSelectedUmlObjectsByRelation();
+          break;
+
+        // 選択中の図形を関係線で関連付け（右クリックした図形と、それ以外の図形を接続）
+        case "contextmenu_connect_relation":
+          this._connectSelectedUmlObjectsByRelation( this.context_menu_root_uml_object_id );
           break;
 
         // 選択中の関係線、または選択中の図形同士を接続する関係線の経路を最適化
