@@ -1335,6 +1335,7 @@ function Style(){
       "system-focus-form-background-light": "rgb(210,210,210)",
       "system-focus-form-dark": "rgb(120,120,120)",
       "system-focus-form-light": "rgb(190,190,190)",
+      "system-disabled-text": "rgb(140,140,140)",
     };
     return color_keywords[ color_code ] || color_code;
   };
