@@ -2035,6 +2035,37 @@ function EditorScreen(){
   };
 
   //--------------------------------------
+  // 関係線の分割点（中継点）を、図形との接続位置に対して垂直・水平に揃う位置へ吸着させる
+  //   吸着距離は図形の特徴点への吸着と同じ（グリッドサイズの半分）。
+  //   軸ごとに判定し、吸着した軸は snapped_x / snapped_y を true にして返す。
+  //--------------------------------------
+  EditorScreen.prototype._snapRelayPointToRelationContact = function( relation_uml_object, x, y ){
+    var result = { x: x, y: y, snapped_x: false, snapped_y: false };
+    var nearest_distance_x = null;
+    var nearest_distance_y = null;
+    var inner_lines = relation_uml_object.inner_lines;
+    var contact_points = [ inner_lines[0], inner_lines[ inner_lines.length - 1 ] ];
+    for ( var i=0; i<contact_points.length; i++ ) {
+      // 図形に接続している始点・終点のみを対象とする
+      if ( ! contact_points[i] || ! contact_points[i].relation ) continue;
+
+      var distance_x = Math.abs( x - contact_points[i].x );
+      if ( distance_x <= ( this.grid_size / 2 ) && ( null == nearest_distance_x || distance_x < nearest_distance_x ) ) {
+        nearest_distance_x = distance_x;
+        result.x = contact_points[i].x;
+        result.snapped_x = true;
+      }
+      var distance_y = Math.abs( y - contact_points[i].y );
+      if ( distance_y <= ( this.grid_size / 2 ) && ( null == nearest_distance_y || distance_y < nearest_distance_y ) ) {
+        nearest_distance_y = distance_y;
+        result.y = contact_points[i].y;
+        result.snapped_y = true;
+      }
+    }
+    return result;
+  };
+
+  //--------------------------------------
   // UMLオブジェクトの内部区切り位置の変更
   //--------------------------------------
   EditorScreen.prototype._moveInnerLine = function( uml_object, inner_shape, type, x, y, is_not_connection ){
@@ -5128,13 +5159,17 @@ function EditorScreen(){
             || ( selected_uml_object.params["pathStyle"] == "line"  && isCollisionPointAndLine( cursor_position.x, cursor_position.y, selected_uml_object.inner_lines[i].x, selected_uml_object.inner_lines[i].y, selected_uml_object.inner_lines[i+1].x, selected_uml_object.inner_lines[i+1].y ) )
             ) {
 
-              // 分割
-              selected_uml_object.inner_lines.splice( i+1, 0, { index: i+1, type: "inner-line-relay", x:cursor_position.x, y:cursor_position.y, relation:null } )
+              // 分割（図形との接続位置と垂直・水平に揃う位置の近傍なら吸着する）
+              var relay_snap = this._snapRelayPointToRelationContact( selected_uml_object, cursor_position.x, cursor_position.y );
+              selected_uml_object.inner_lines.splice( i+1, 0, { index: i+1, type: "inner-line-relay", x:relay_snap.x, y:relay_snap.y, relation:null } )
 
               // インデックス番号を振り直す
               for ( var j=i+2; j<selected_uml_object.inner_lines.length; j++ ) {
                 selected_uml_object.inner_lines[j].index = j;
               }
+
+              // リレーションの全体矩形を正規化（吸着で分割点が線上から外れる場合があるため）
+              this._normalizationUmlObjectSizeByInnerLine( selected_uml_object );
 
               // 内部矩形の生成
               selected_uml_object.inner_shapes = this._refreshInnerShape( selected_uml_object, selected_uml_object.type );
@@ -5223,7 +5258,14 @@ function EditorScreen(){
       // ただし関係線（relation）の始点・終点は、接続時に「辺の中央へ吸着」させる判定のため生座標のまま渡す
       // （接続有無に応じて _moveInnerLine 内で確定。接続時は10px＋辺中央、非接続時は10px、中継点・リサイズは10px）
       else {
-        if ( ! isIncludeArray( [ "inner-line-start", "inner-line-end" ], drag_starting_data.toggle.type ) ) {
+        // 関係線の分割点（中継点）は、図形との接続位置と垂直・水平に揃う位置の近傍なら接続位置の座標へ吸着する
+        //   （吸着しなかった軸のみ通常のグリッドへ吸着）
+        if ( "inner-line-relay" == drag_starting_data.toggle.type ) {
+          var relay_snap = this._snapRelayPointToRelationContact( drag_starting_data.toggle.owner, cursor_position.x, cursor_position.y );
+          cursor_position.x = relay_snap.snapped_x ? relay_snap.x : Math.floor( cursor_position.x / this.grid_size ) * this.grid_size;
+          cursor_position.y = relay_snap.snapped_y ? relay_snap.y : Math.floor( cursor_position.y / this.grid_size ) * this.grid_size;
+        }
+        else if ( ! isIncludeArray( [ "inner-line-start", "inner-line-end" ], drag_starting_data.toggle.type ) ) {
           cursor_position.x = Math.floor( cursor_position.x / this.grid_size ) * this.grid_size;
           cursor_position.y = Math.floor( cursor_position.y / this.grid_size ) * this.grid_size;
         }
