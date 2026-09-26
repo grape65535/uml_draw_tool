@@ -4161,6 +4161,9 @@ function EditorScreen(){
 
     // ツール選択をカーソルか範囲選択に戻す
     setTimeout( function(){
+      // 生成直後に文字入力が始まっていた場合はフォーカスを戻さない
+      // （UIオブジェクトにフォーカスが移ると、ESC・クリックで入力内容を確定できなくなるため）
+      if ( this.inputting_uml_object || this.inputting_instant_label ) return;
       this.setFocusObject( this.findObjectByName( this.select_tool_name ) );
     }.bind(this), 100 );
 
