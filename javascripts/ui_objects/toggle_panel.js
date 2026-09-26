@@ -157,6 +157,9 @@ function TogglePanel(){
 
       // 子オブジェクトのクリック判定
       for ( var i=0; i<this.children.length; i++ ) {
+        // 実行不可（グレーアウト）の項目のクリックは、メニューを表示したまま何もしない
+        if ( this.children[i].disabled && this.children[i].isHover( statuses ) ) return true;
+
         // カーソルイベントの委譲
         if ( this.children[i].onChangeCursorStatuses( statuses, screen ) ) {
           // メニューを非表示にする

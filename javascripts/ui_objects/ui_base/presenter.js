@@ -457,7 +457,19 @@ function Presenter(){
   // 文字色の取得
   //--------------------------------------
   Presenter.prototype.getDrawColor = function(){
+    // 実行不可（グレーアウト）のオブジェクト内の文字は灰色で描画する
+    if ( this.isDisabledByAncestor() ) return this.getColor( "system-disabled-text" );
     return this.getColor( ( this.focused ? this.style.focus_color : null ) || this.style.color );
+  };
+
+  //--------------------------------------
+  // 自身または祖先が実行不可（グレーアウト）状態？
+  //--------------------------------------
+  Presenter.prototype.isDisabledByAncestor = function(){
+    for ( var object = this; object; object = object.parent ) {
+      if ( object.disabled ) return true;
+    }
+    return false;
   };
 
   //--------------------------------------
