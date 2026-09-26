@@ -12,6 +12,9 @@ var SVG_EMBED_FONT_NAME = "UmlDrawToolEmbedFont";
 // SVGで利用するフォント（埋め込みフォントが使えない閲覧環境では、環境にあるフォントへフォールバックする）
 var SVG_FONT_FAMILY = `'${ SVG_EMBED_FONT_NAME }', ipag, 'IPAGothic', 'IPAゴシック', 'Hiragino Kaku Gothic ProN', 'Yu Gothic', Meiryo, sans-serif`;
 
+// 保存データ（JSON）を埋め込む<metadata>要素のid
+var SVG_EMBED_JSON_METADATA_ID = "uml_draw_tool_json";
+
 // 埋め込み用フォントの読込みキャッシュ（URL → ArrayBuffer）
 var _svg_font_buffer_cache = {};
 
@@ -27,6 +30,7 @@ function initializeSvgContext( width, height, background_color ){
     clip_count: 0,
     font_buffer: null,
     used_text:  [],
+    metadata:   null,
     params:     {
       opacity:  1.0,
       line:     {
@@ -66,6 +70,31 @@ function setSvgEmbedFont( context, font_buffer ){
 }
 
 //--------------------------------------
+// <metadata>に埋め込む文字列を設定する
+//   id   : <metadata>要素のid（取り出す時に指定する）
+//   text : 埋め込む文字列（XMLの特殊文字はエスケープして埋め込む）
+//--------------------------------------
+function setSvgMetadata( context, id, text ){
+  context.metadata = { id: id, text: text };
+}
+
+//--------------------------------------
+// SVG文字列から、指定idの<metadata>に埋め込まれた文字列を取り出す（見つからない時はnull）
+//--------------------------------------
+function extractSvgMetadata( svg_text, id ){
+  if ( "string" != typeof svg_text || 0 == svg_text.length ) return null;
+
+  var svg_document = ( new DOMParser() ).parseFromString( svg_text, "image/svg+xml" );
+  if ( 0 < svg_document.getElementsByTagName( "parsererror" ).length ) return null;
+
+  var metadata_elements = svg_document.getElementsByTagName( "metadata" );
+  for ( var i=0; i<metadata_elements.length; i++ ) {
+    if ( id == metadata_elements[i].getAttribute( "id" ) ) return metadata_elements[i].textContent;
+  }
+  return null;
+}
+
+//--------------------------------------
 // SVGを生成（文字列で取得）
 //--------------------------------------
 function saveSvgAsString( context ){
@@ -74,6 +103,11 @@ function saveSvgAsString( context ){
   var svg = [];
   svg.push( '<?xml version="1.0" encoding="UTF-8"?>' );
   svg.push( `<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" version="1.1" width="${ context.width }" height="${ context.height }" viewBox="0 0 ${ context.width } ${ context.height }">` );
+  if ( context.metadata ) {
+    // 要素の内容なので、引用符はエスケープせずにサイズを抑える
+    var metadata_text = context.metadata.text.replace( /&/g, "&amp;" ).replace( /</g, "&lt;" ).replace( />/g, "&gt;" );
+    svg.push( `<metadata id="${ _escapeSvgText( context.metadata.id ) }">${ metadata_text }</metadata>` );
+  }
   if ( 0 < context.defs.length || font_face ) {
     svg.push( "<defs>" );
     if ( font_face ) svg.push( `<style type="text/css">${ font_face }</style>` );

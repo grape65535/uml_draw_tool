@@ -6476,12 +6476,14 @@ function EditorScreen(){
   //--------------------------------------
   // SVG出力
   //--------------------------------------
-  EditorScreen.prototype._exportSvgBlob = function( callback ){
+  EditorScreen.prototype._exportSvgBlob = function( callback, is_embed_json ){
     // 埋め込み用フォントの読込み（PDF出力と同じフォントを、利用文字だけのサブセットにして埋め込む）
     loadSvgFont( './fonts/ipag.ttf', function( font_buffer ){
       // SVGコンテキストの初期化（背景は白）
       var svg_context = initializeSvgContext( this.save_data.paper.width, this.save_data.paper.height, getSvgColor( null, 1, 1, 1 ) );
       setSvgEmbedFont( svg_context, font_buffer );
+      // 「save as JSON」と同じJSONを<metadata>に埋め込む（ドロップ時に取り出して開けるようにする）
+      if ( is_embed_json ) setSvgMetadata( svg_context, SVG_EMBED_JSON_METADATA_ID, JSON.stringify( this.save_data ) );
       // 色の取得
       var black_color = getSvgColor( svg_context, 0, 0, 0 );
       var white_color = getSvgColor( svg_context, 1, 1, 1 );
@@ -6856,13 +6858,14 @@ function EditorScreen(){
 
   //--------------------------------------
   // SVGでファイル保存
+  //   is_embed_json : trueなら「save as JSON」と同じJSONを<metadata>に埋め込む
   //--------------------------------------
-  EditorScreen.prototype._saveAsSvg = function(){
+  EditorScreen.prototype._saveAsSvg = function( is_embed_json ){
     this._exportSvgBlob( function( blob ){
       var title_name = this._findLikelyFileTitle();
       this.file_manager.downloadBlob( blob, `${ title_name || "uml_diagram" }_${ this._getDateTimeString( new Date() ) }.svg` );
       $("title").text( title_name || "UML DrawTool" );
-    }.bind(this) );
+    }.bind(this), is_embed_json );
   };
 
   //--------------------------------------
@@ -7040,6 +7043,7 @@ toggle_panel
   <button id='filemenu_file_save_json'>save as JSON ( cmd + s )</button><br/>
   <button id='filemenu_file_save_pdf'>save as PDF</button><br/>
   <button id='filemenu_file_save_svg'>save as SVG</button><br/>
+  <button id='filemenu_file_save_svg_embed_json'>save as SVG ( embed json )</button><br/>
 </toggle_panel>
 <!-- 編集メニュー -->
 <toggle_panel id='filemenu_edit_panel'>
@@ -7412,7 +7416,12 @@ toggle_panel
 
         // データの保存（SVG）
         case "filemenu_file_save_svg":
-          this._saveAsSvg();
+          this._saveAsSvg( false );
+          break;
+
+        // データの保存（JSONを埋め込んだSVG）
+        case "filemenu_file_save_svg_embed_json":
+          this._saveAsSvg( true );
           break;
 
         // 編集メニュー
@@ -7687,6 +7696,26 @@ toggle_panel
     }
 
     alert("このファイルを開くことはできません");
+  };
+
+  //--------------------------------------
+  // SVGファイルのドロップ
+  //   「save as SVG ( embed json )」で保存したSVGなら、<metadata>のJSONを取り出して開く。
+  //   それ以外のSVGは、これまで通り画像として配置する。
+  //--------------------------------------
+  EditorScreen.prototype.onOpenFileAsSvgText = function( file, svg_text ){
+    var json = extractSvgMetadata( svg_text, SVG_EMBED_JSON_METADATA_ID );
+    if ( json ) {
+      try {
+        JSON.parse( json );
+        this.onOpenFileAsText( file, json );
+        return;
+      }
+      catch ( e ) {
+        // JSONとして解釈できない時は画像として扱う
+      }
+    }
+    this.file_manager.openFileAsDataURL( file, this.onOpenFileAsDataURL.bind(this) );
   };
 
   //--------------------------------------
