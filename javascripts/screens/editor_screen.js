@@ -6476,21 +6476,25 @@ function EditorScreen(){
   //--------------------------------------
   // SVG出力
   //--------------------------------------
-  EditorScreen.prototype._exportSvgBlob = function(){
-    // SVGコンテキストの初期化（背景は白）
-    var svg_context = initializeSvgContext( this.save_data.paper.width, this.save_data.paper.height, getSvgColor( null, 1, 1, 1 ) );
-    // 色の取得
-    var black_color = getSvgColor( svg_context, 0, 0, 0 );
-    var white_color = getSvgColor( svg_context, 1, 1, 1 );
+  EditorScreen.prototype._exportSvgBlob = function( callback ){
+    // 埋め込み用フォントの読込み（PDF出力と同じフォントを、利用文字だけのサブセットにして埋め込む）
+    loadSvgFont( './fonts/ipag.ttf', function( font_buffer ){
+      // SVGコンテキストの初期化（背景は白）
+      var svg_context = initializeSvgContext( this.save_data.paper.width, this.save_data.paper.height, getSvgColor( null, 1, 1, 1 ) );
+      setSvgEmbedFont( svg_context, font_buffer );
+      // 色の取得
+      var black_color = getSvgColor( svg_context, 0, 0, 0 );
+      var white_color = getSvgColor( svg_context, 1, 1, 1 );
 
-    // UMLオブジェクトの描画
-    for ( var i=0; i<this.save_data.priorities.length; i++ ) {
-      var uml_object = this.save_data.objects[ this.save_data.priorities[i] ];
-      this._drawSvgUmlObjectAt( svg_context, 0, 0, uml_object, black_color, white_color );
-    }
+      // UMLオブジェクトの描画
+      for ( var i=0; i<this.save_data.priorities.length; i++ ) {
+        var uml_object = this.save_data.objects[ this.save_data.priorities[i] ];
+        this._drawSvgUmlObjectAt( svg_context, 0, 0, uml_object, black_color, white_color );
+      }
 
-    // SVG生成
-    return saveSvgAsBlob( svg_context );
+      // SVG生成
+      callback( saveSvgAsBlob( svg_context ) );
+    }.bind(this) );
   };
 
   /*------------------------------------------------------------------------------
@@ -6854,10 +6858,11 @@ function EditorScreen(){
   // SVGでファイル保存
   //--------------------------------------
   EditorScreen.prototype._saveAsSvg = function(){
-    var blob = this._exportSvgBlob();
-    var title_name = this._findLikelyFileTitle();
-    this.file_manager.downloadBlob( blob, `${ title_name || "uml_diagram" }_${ this._getDateTimeString( new Date() ) }.svg` );
-    $("title").text( title_name || "UML DrawTool" );
+    this._exportSvgBlob( function( blob ){
+      var title_name = this._findLikelyFileTitle();
+      this.file_manager.downloadBlob( blob, `${ title_name || "uml_diagram" }_${ this._getDateTimeString( new Date() ) }.svg` );
+      $("title").text( title_name || "UML DrawTool" );
+    }.bind(this) );
   };
 
   //--------------------------------------
