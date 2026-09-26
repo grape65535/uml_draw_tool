@@ -7043,7 +7043,7 @@ toggle_panel
   <button id='filemenu_file_save_json'>save as JSON ( cmd + s )</button><br/>
   <button id='filemenu_file_save_pdf'>save as PDF</button><br/>
   <button id='filemenu_file_save_svg'>save as SVG</button><br/>
-  <button id='filemenu_file_save_svg_embed_json'>save as SVG ( embed json )</button><br/>
+  <button id='filemenu_file_save_svg_embed_json'>save as SVG embed JSON</button><br/>
 </toggle_panel>
 <!-- 編集メニュー -->
 <toggle_panel id='filemenu_edit_panel'>
