@@ -1,0 +1,112 @@
+/*------------------------------------------------------------------------------
+  UI表示用文言（英語）
+    file:// で開いた場合でも読み込めるよう、JSONではなくscript要素で読み込むJSとし、
+    グローバル変数 i18n_messages に言語コードをキーとして登録する。
+    言語を追加する時は、このファイルを複製して言語コードと文言を変更し、
+    index.html の i18n_manager.js より前に script 要素を追加する。
+------------------------------------------------------------------------------*/
+var i18n_messages = i18n_messages || {};
+i18n_messages["en"] = {
+  "language_name": "English",
+  "title": "UML DrawTool",
+  "ui": {
+    "filemenu_file": "File",
+    "filemenu_edit": "Edit",
+    "filemenu_view": "View",
+    "filemenu_file_save_json": "save as JSON ( cmd + s )",
+    "filemenu_file_save_pdf": "save as PDF",
+    "filemenu_file_save_svg": "save as SVG",
+    "filemenu_file_save_svg_embed_json": "save as SVG embed JSON",
+    "filemenu_edit_undo": "undo ( cmd + z )",
+    "filemenu_edit_redo": "redo ( cmd + shift + z )",
+    "filemenu_edit_cut": "cut ( cmd + x )",
+    "filemenu_edit_copy": "copy ( cmd + c )",
+    "filemenu_edit_paste": "paste ( cmd + v )",
+    "filemenu_edit_plain_related_paste": "related paste ( alt + down key )",
+    "filemenu_edit_arrow_related_paste": "arrow related paste ( cmd + down key )",
+    "filemenu_edit_most_background": "show on most background ( cmd + [ )",
+    "filemenu_edit_background": "show on background ( [ )",
+    "filemenu_edit_foreground": "show on foreground ( ] )",
+    "filemenu_edit_most_foreground": "show on most foreground ( cmd + ] )",
+    "filemenu_edit_group": "make group ( cmd + g )",
+    "filemenu_edit_release_group": "release group ( cmd + shift + g )",
+    "filemenu_edit_set_default_params": "set as default params ( cmd + d )",
+    "filemenu_view_50": "zoom 50%",
+    "filemenu_view_75": "zoom 75%",
+    "filemenu_view_100": "zoom 100%",
+    "filemenu_view_125": "zoom 125%",
+    "filemenu_view_150": "zoom 150%",
+    "filemenu_view_200": "zoom 200%",
+    "contextmenu_cut": "cut",
+    "contextmenu_copy": "copy",
+    "contextmenu_paste": "paste",
+    "contextmenu_plain_related_paste": "related paste",
+    "contextmenu_arrow_related_paste": "arrow related paste",
+    "contextmenu_most_background": "show on most background",
+    "contextmenu_background": "show on background",
+    "contextmenu_foreground": "show on foreground",
+    "contextmenu_most_foreground": "show on most foreground",
+    "contextmenu_group": "make group",
+    "contextmenu_release_group": "release group"
+  },
+  "params": {
+    "fontSize": "font size",
+    "nameAlign": "name align",
+    "textAlign": "text align",
+    "verticalAlign": "vertical align",
+    "wordBreak": "word break",
+    "textColor": "text color",
+    "pathStyle": "path style",
+    "lineStyle": "line style",
+    "lineStartStyle": "line start style",
+    "lineEndStyle": "line end style",
+    "lineWidth": "line width",
+    "lineColor": "line color",
+    "backgroundColor": "background color"
+  },
+  "options": {
+    "left": "left",
+    "center": "center",
+    "right": "right",
+    "top": "top",
+    "bottom": "bottom",
+    "normal": "normal",
+    "break": "break",
+    "line": "line",
+    "curve": "curve",
+    "solid": "solid",
+    "dashed": "dashed",
+    "dotted": "dotted",
+    "none": "none",
+    "arrow": "arrow",
+    "check_arrow": "check-arrow",
+    "triangle_arrow": "triangle-arrow",
+    "triangle_arrow_black": "triangle-arrow(black)",
+    "rhombus": "rhombus",
+    "rhombus_black": "rhombus(black)",
+    "circle": "circle",
+    "circle_black": "circle(black)"
+  },
+  "colors": {
+    "white": "white",
+    "gray": "gray",
+    "black": "black",
+    "pink": "pink",
+    "red": "red",
+    "brown": "brown",
+    "lightgreen": "light green",
+    "green": "green",
+    "darkgreen": "dark green",
+    "skyblue": "sky blue",
+    "blue": "blue",
+    "darkblue": "dark blue",
+    "yellow": "yellow",
+    "purple": "purple",
+    "transparent": "transparent"
+  },
+  "messages": {
+    "cannot_place_image": "This image cannot be placed.",
+    "confirm_open_in_new_tab": "Open this file in a new tab?",
+    "cannot_open_file": "This file cannot be opened."
+  }
+};
