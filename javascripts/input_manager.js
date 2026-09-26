@@ -49,7 +49,7 @@ function InputManager(){
       KEYCODE_P,        KEYCODE_Q,        KEYCODE_R,        KEYCODE_S,        KEYCODE_T,
       KEYCODE_U,        KEYCODE_V,        KEYCODE_W,        KEYCODE_X,        KEYCODE_Y,
       KEYCODE_Z,        KEYCODE_DELETE,   KEYCODE_ENTER,    KEYCODE_SHIFT,    KEYCODE_CTRL,
-      KEYCODE_COMMAND,  KEYCODE_RCOMMAND, KEYCODE_ALT,      KEYCODE_SPACE,    KEYCODE_ESC,
+      KEYCODE_COMMAND,  KEYCODE_RCOMMAND, KEYCODE_ALT,      KEYCODE_SPACE,    KEYCODE_ESC,      KEYCODE_TAB,
       KEYCODE_UP,       KEYCODE_DOWN,     KEYCODE_LEFT,     KEYCODE_RIGHT,
       KEYCODE_OPEN_BRACKET,  KEYCODE_CLOSE_BRACKET,
       KEYCODE_SHORTCUT_SELECT,  KEYCODE_SHORTCUT_SAVE,  KEYCODE_SHORTCUT_UNDO,  KEYCODE_SHORTCUT_REDO,
@@ -709,6 +709,7 @@ function InputManager(){
     this.keycode_to_name[ KEYCODE_ALT ] = "[ALT]";
     this.keycode_to_name[ KEYCODE_SPACE ] = "[SPACE]";
     this.keycode_to_name[ KEYCODE_ESC ] = "[ESC]";
+    this.keycode_to_name[ KEYCODE_TAB ] = "[TAB]";
     this.keycode_to_name[ KEYCODE_UP ] = "[UP]";
     this.keycode_to_name[ KEYCODE_DOWN ] = "[DOWN]";
     this.keycode_to_name[ KEYCODE_LEFT ] = "[LEFT]";
@@ -1216,6 +1217,7 @@ var KEYCODE_RCOMMAND = 93;
 var KEYCODE_ALT = 18;
 var KEYCODE_SPACE = 32;
 var KEYCODE_ESC = 27;
+var KEYCODE_TAB = 9;
 var KEYCODE_UP = 38;
 var KEYCODE_DOWN = 40;
 var KEYCODE_LEFT = 37;

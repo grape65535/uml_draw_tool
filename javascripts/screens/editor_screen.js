@@ -4617,6 +4617,17 @@ function EditorScreen(){
     var selected_key = this.select_uml_object_ids[0];
     var uml_object = this._findUmlObjectByKey( selected_key );
     if ( ! uml_object ) return false;
+
+    // グループ全体を選択中なら、グループ内の最初のオブジェクトを選択する（ドリルイン）
+    if ( "group" == uml_object.type ) {
+      var child_ids = Object.keys( uml_object.children );
+      if ( 0 == child_ids.length ) return false;
+      this._hideContextMenu();
+      this._selectUmlObjectByKey( `${ this._getUmlObjectBaseKeyByKey( selected_key ) }.children.${ child_ids[0] }` );
+      this.screen_manager.requestDraw( this );
+      return true;
+    }
+
     var text_shapes = this._getTextShapesByUmlObject( uml_object );
     if ( 0 == text_shapes.length ) return false;
 
@@ -4628,6 +4639,56 @@ function EditorScreen(){
     this._hideContextMenu();
 
     this._startInputtingUmlObjectShape( uml_object, shape );
+    return true;
+  };
+
+  //--------------------------------------
+  // 選択キーから内部要素（矩形・線など）の指定を除いた、オブジェクト自体のキーを取得する
+  //--------------------------------------
+  EditorScreen.prototype._getUmlObjectBaseKeyByKey = function( uml_object_key ){
+    return uml_object_key.replace( /\.(inner_rects|inner_lines|inner_shapes)\..+$/i, "" );
+  };
+
+  //--------------------------------------
+  // TABキーで選択中のUMLオブジェクトと同じ階層内の次の（SHIFT併用時は前の）オブジェクトへ選択を移動する
+  //   順序は保存データ上の記録順（トップレベルは save_data.objects、グループ内は children のキー順）。
+  //   グループはグループ自体を選択対象とし、中身には入らない。末尾の次は先頭に戻る。
+  //--------------------------------------
+  EditorScreen.prototype._selectNextUmlObjectByTabKey = function( statuses ){
+    if ( ! statuses.isDownKey( KEYCODE_TAB ) ) return false;
+    // 文字入力中は textarea 側で処理するため何もしない
+    if ( this.inputting_uml_object || this.inputting_instant_label ) return false;
+    // ボタン以外のUIオブジェクト（パラメータ欄等）にフォーカスがある時は何もしない
+    if ( this.focus_ui_object && "Button" != this.focus_ui_object.objectName() ) return false;
+    // 単一選択の時のみ
+    if ( 1 != this.select_uml_object_ids.length ) return false;
+
+    // 選択中オブジェクトの親の階層（キー接頭辞）と兄弟を取得する
+    var selected_key = this._getUmlObjectBaseKeyByKey( this.select_uml_object_ids[0] );
+    var separator_index = selected_key.lastIndexOf( ".children." );
+    var parent_key = ( -1 == separator_index ? null : selected_key.slice( 0, separator_index ) );
+    var current_id = ( -1 == separator_index ? selected_key : selected_key.slice( separator_index + ".children.".length ) );
+    var siblings = null;
+    if ( parent_key ) {
+      var parent_uml_object = this._findUmlObjectByKey( parent_key );
+      if ( ! parent_uml_object ) return false;
+      siblings = parent_uml_object.children;
+    }
+    else {
+      siblings = this.save_data.objects;
+    }
+
+    var sibling_ids = Object.keys( siblings );
+    var current_index = sibling_ids.indexOf( current_id );
+    if ( -1 == current_index ) return false;
+    var next_index = ( current_index + ( statuses.isPressKey( KEYCODE_SHIFT ) ? -1 : 1 ) + sibling_ids.length ) % sibling_ids.length;
+    var next_id = sibling_ids[ next_index ];
+
+    // 右クリックメニューが開いていれば閉じる
+    this._hideContextMenu();
+
+    this._selectUmlObjectByKey( parent_key ? `${ parent_key }.children.${ next_id }` : next_id );
+    this.screen_manager.requestDraw( this );
     return true;
   };
 
@@ -7587,6 +7648,9 @@ toggle_panel
 
       // ENTERキーで選択中オブジェクトの文字入力を開始
       if ( this._startInputtingByEnterKey( statuses ) ) return true;
+
+      // TABキーで同じ階層内の次のオブジェクトへ選択を移動
+      if ( this._selectNextUmlObjectByTabKey( statuses ) ) return true;
 
       // デバッグ出力
       if ( this._logByShortCutKey( statuses ) ) return true;
