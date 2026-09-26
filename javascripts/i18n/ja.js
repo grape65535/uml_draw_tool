@@ -70,7 +70,7 @@ i18n_messages["ja"] = {
     "right": "右寄せ",
     "top": "上寄せ",
     "bottom": "下寄せ",
-    "normal": "単語単位",
+    "normal": "折り返し無し",
     "break": "文字単位",
     "line": "直線",
     "curve": "曲線",

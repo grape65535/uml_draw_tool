@@ -4161,6 +4161,9 @@ function EditorScreen(){
 
     // ツール選択をカーソルか範囲選択に戻す
     setTimeout( function(){
+      // 生成直後に文字入力が始まっていた場合はフォーカスを戻さない
+      // （UIオブジェクトにフォーカスが移ると、ESC・クリックで入力内容を確定できなくなるため）
+      if ( this.inputting_uml_object || this.inputting_instant_label ) return;
       this.setFocusObject( this.findObjectByName( this.select_tool_name ) );
     }.bind(this), 100 );
 
@@ -4560,6 +4563,201 @@ function EditorScreen(){
   };
 
   //--------------------------------------
+  // UMLオブジェクト内の文字矩形の入力を開始する
+  //--------------------------------------
+  EditorScreen.prototype._startInputtingUmlObjectShape = function( uml_object, shape ){
+    var base_pos = this.findObjectByName( "paper" ).screenPosition();
+
+    this.inputting_uml_object = uml_object;
+    this.inputting_uml_object_shape = shape;
+    this.requestTextarea(
+      shape.text,
+      {
+        x: base_pos.x + ( ( shape.x + 3 ) * this.zoom_rate ),
+        y: base_pos.y + ( ( shape.y + 3 ) * this.zoom_rate ),
+        width:  ( ( shape.width - 6 ) * this.zoom_rate ),
+        height: ( ( shape.height - 6 ) * this.zoom_rate )
+      },
+      "rgb(0,0,0)",
+      this.inputting_uml_object.params.fontSize || 12,
+      ( this.inputting_uml_object.params.fontSize || 12 ) + 2,
+      0
+    );
+  };
+
+  //--------------------------------------
+  // UMLオブジェクト内の文字入力可能な矩形を位置順（上→下、左→右）で取得する
+  //--------------------------------------
+  EditorScreen.prototype._getTextShapesByUmlObject = function( uml_object ){
+    var text_shapes = [];
+    for ( var key in uml_object.inner_rects ) {
+      var inner_rect = uml_object.inner_rects[key];
+      if ( "rect" == inner_rect.type && inner_rect.has_text ) text_shapes.push( inner_rect );
+    }
+    text_shapes.sort( function( a, b ){
+      return ( a.y - b.y ) || ( a.x - b.x );
+    } );
+    return text_shapes;
+  };
+
+  //--------------------------------------
+  // ENTERキーで選択中のUMLオブジェクトの文字入力を開始する
+  //   選択中のオブジェクトが1つで、文字入力可能な矩形を持つ場合のみ。
+  //   文字矩形を選択中ならその矩形、そうでなければ位置順で先頭の文字矩形を入力対象にする。
+  //--------------------------------------
+  EditorScreen.prototype._startInputtingByEnterKey = function( statuses ){
+    if ( ! statuses.isDownKey( KEYCODE_ENTER ) ) return false;
+    // SHIFT+ENTERはグループへのドリルアウト（_selectParentGroupByShiftEnterKey）で扱う
+    if ( statuses.isPressKey( KEYCODE_SHIFT ) ) return false;
+    // 既に文字入力中なら何もしない
+    if ( this.inputting_uml_object || this.inputting_instant_label ) return false;
+    // ボタン以外のUIオブジェクト（パラメータ欄等）にフォーカスがある時は、そちらのENTER操作を優先する
+    if ( this.focus_ui_object && "Button" != this.focus_ui_object.objectName() ) return false;
+    // 単一選択の時のみ
+    if ( 1 != this.select_uml_object_ids.length ) return false;
+
+    var selected_key = this.select_uml_object_ids[0];
+    var uml_object = this._findUmlObjectByKey( selected_key );
+    if ( ! uml_object ) return false;
+
+    // グループ全体を選択中なら、グループ内の最初のオブジェクトを選択する（ドリルイン）
+    if ( "group" == uml_object.type ) {
+      var child_ids = Object.keys( uml_object.children );
+      if ( 0 == child_ids.length ) return false;
+      this._hideContextMenu();
+      this._selectUmlObjectByKey( `${ this._getUmlObjectBaseKeyByKey( selected_key ) }.children.${ child_ids[0] }` );
+      this.screen_manager.requestDraw( this );
+      return true;
+    }
+
+    var text_shapes = this._getTextShapesByUmlObject( uml_object );
+    if ( 0 == text_shapes.length ) return false;
+
+    // 文字矩形を選択中ならその矩形を優先する
+    var selected_shape = this._getUmlObjectInnerShapeByKey( selected_key );
+    var shape = ( -1 != text_shapes.indexOf( selected_shape ) ? selected_shape : text_shapes[0] );
+
+    // 右クリックメニューが開いていれば閉じる
+    this._hideContextMenu();
+
+    this._startInputtingUmlObjectShape( uml_object, shape );
+    return true;
+  };
+
+  //--------------------------------------
+  // SHIFT+ENTERキーでグループ内の選択中オブジェクトを直接包含しているグループへ選択を移動する（ドリルアウト）
+  //   ENTERキーによるグループ内へのドリルイン（_startInputtingByEnterKey）と対になる操作。
+  //--------------------------------------
+  EditorScreen.prototype._selectParentGroupByShiftEnterKey = function( statuses ){
+    if ( ! statuses.isDownKey( KEYCODE_ENTER ) || ! statuses.isPressKey( KEYCODE_SHIFT ) ) return false;
+    // 文字入力中は textarea 側で処理するため何もしない
+    if ( this.inputting_uml_object || this.inputting_instant_label ) return false;
+    // ボタン以外のUIオブジェクト（パラメータ欄等）にフォーカスがある時は何もしない
+    if ( this.focus_ui_object && "Button" != this.focus_ui_object.objectName() ) return false;
+    // 単一選択の時のみ
+    if ( 1 != this.select_uml_object_ids.length ) return false;
+
+    // グループ内のオブジェクトでなければ何もしない
+    var selected_key = this._getUmlObjectBaseKeyByKey( this.select_uml_object_ids[0] );
+    var separator_index = selected_key.lastIndexOf( ".children." );
+    if ( -1 == separator_index ) return false;
+
+    // 右クリックメニューが開いていれば閉じる
+    this._hideContextMenu();
+
+    this._selectUmlObjectByKey( selected_key.slice( 0, separator_index ) );
+    this.screen_manager.requestDraw( this );
+    return true;
+  };
+
+  //--------------------------------------
+  // 選択キーから内部要素（矩形・線など）の指定を除いた、オブジェクト自体のキーを取得する
+  //--------------------------------------
+  EditorScreen.prototype._getUmlObjectBaseKeyByKey = function( uml_object_key ){
+    return uml_object_key.replace( /\.(inner_rects|inner_lines|inner_shapes)\..+$/i, "" );
+  };
+
+  //--------------------------------------
+  // TABキーで選択中のUMLオブジェクトと同じ階層内の次の（SHIFT併用時は前の）オブジェクトへ選択を移動する
+  //   順序は保存データ上の記録順（トップレベルは save_data.objects、グループ内は children のキー順）。
+  //   グループはグループ自体を選択対象とし、中身には入らない。末尾の次は先頭に戻る。
+  //--------------------------------------
+  EditorScreen.prototype._selectNextUmlObjectByTabKey = function( statuses ){
+    if ( ! statuses.isDownKey( KEYCODE_TAB ) ) return false;
+    // 文字入力中は textarea 側で処理するため何もしない
+    if ( this.inputting_uml_object || this.inputting_instant_label ) return false;
+    // ボタン以外のUIオブジェクト（パラメータ欄等）にフォーカスがある時は何もしない
+    if ( this.focus_ui_object && "Button" != this.focus_ui_object.objectName() ) return false;
+    // 単一選択の時のみ
+    if ( 1 != this.select_uml_object_ids.length ) return false;
+
+    // 選択中オブジェクトの親の階層（キー接頭辞）と兄弟を取得する
+    var selected_key = this._getUmlObjectBaseKeyByKey( this.select_uml_object_ids[0] );
+    var separator_index = selected_key.lastIndexOf( ".children." );
+    var parent_key = ( -1 == separator_index ? null : selected_key.slice( 0, separator_index ) );
+    var current_id = ( -1 == separator_index ? selected_key : selected_key.slice( separator_index + ".children.".length ) );
+    var siblings = null;
+    if ( parent_key ) {
+      var parent_uml_object = this._findUmlObjectByKey( parent_key );
+      if ( ! parent_uml_object ) return false;
+      siblings = parent_uml_object.children;
+    }
+    else {
+      siblings = this.save_data.objects;
+    }
+
+    var sibling_ids = Object.keys( siblings );
+    var current_index = sibling_ids.indexOf( current_id );
+    if ( -1 == current_index ) return false;
+    var next_index = ( current_index + ( statuses.isPressKey( KEYCODE_SHIFT ) ? -1 : 1 ) + sibling_ids.length ) % sibling_ids.length;
+    var next_id = sibling_ids[ next_index ];
+
+    // 右クリックメニューが開いていれば閉じる
+    this._hideContextMenu();
+
+    this._selectUmlObjectByKey( parent_key ? `${ parent_key }.children.${ next_id }` : next_id );
+    this.screen_manager.requestDraw( this );
+    return true;
+  };
+
+  //--------------------------------------
+  // 複数行テキストの入力エリアでのTABキー押下
+  //   入力中の文字を確定し、同じUMLオブジェクト内の次の（SHIFT併用時は前の）文字矩形へ入力を移動する。
+  //   文字矩形は位置順（上→下、左→右）に巡回する。
+  //--------------------------------------
+  EditorScreen.prototype.onTextareaTabKey = function( is_reverse ){
+    // UMLオブジェクトの文字入力中でなければ何もしない（ブラウザ標準動作に任せる）
+    if ( ! this.inputting_uml_object ) return false;
+
+    var uml_object = this.inputting_uml_object;
+    var current_shape = this.inputting_uml_object_shape;
+
+    // 同じオブジェクト内の文字入力可能な矩形を位置順に並べる
+    var text_shapes = this._getTextShapesByUmlObject( uml_object );
+    var current_index = text_shapes.indexOf( current_shape );
+    if ( -1 == current_index ) return false;
+    var next_index = ( current_index + ( is_reverse ? -1 : 1 ) + text_shapes.length ) % text_shapes.length;
+
+    // UIオブジェクトにフォーカスが残っていると入力内容を取得できないため、先に解除しておく
+    if ( this.focus_ui_object ) {
+      this.focus_ui_object.blur();
+      this.focus_ui_object = null;
+    }
+
+    // 現在の入力を確定して編集内容を記録する
+    this._blurInputting();
+    this.data_manager.setData( this.save_data );
+
+    // 次の文字矩形の入力を開始する
+    this._startInputtingUmlObjectShape( uml_object, text_shapes[ next_index ] );
+
+    // 入力パイプライン外での描画となるため、ESC経由の確定と同様に同期的にレイアウトを更新しておく
+    this.screen_manager.relayout();
+    this.screen_manager.requestDraw( this );
+    return true;
+  };
+
+  //--------------------------------------
   // 何も無い場所のダブルクリックによるインスタントラベル入力を開始する
   //--------------------------------------
   EditorScreen.prototype._startInstantLabelInput = function( position ){
@@ -4758,23 +4956,7 @@ function EditorScreen(){
             var shape = this._getUmlObjectInnerShapeByKey( selectable_key );
             // 文字入力を行う
             if ( shape && "rect" == shape.type && shape.has_text ) {
-              var base_pos = this.findObjectByName( "paper" ).screenPosition();
-        
-              this.inputting_uml_object = this._findUmlObjectByKey( selectable_key );
-              this.inputting_uml_object_shape = shape;
-              this.requestTextarea(
-                shape.text,
-                { 
-                  x: base_pos.x + ( ( shape.x + 3 ) * this.zoom_rate ),
-                  y: base_pos.y + ( ( shape.y + 3 ) * this.zoom_rate ),
-                  width:  ( ( shape.width - 6 ) * this.zoom_rate ),
-                  height: ( ( shape.height - 6 ) * this.zoom_rate ) 
-                },
-                "rgb(0,0,0)", 
-                this.inputting_uml_object.params.fontSize || 12,
-                ( this.inputting_uml_object.params.fontSize || 12 ) + 2,
-                0
-              );
+              this._startInputtingUmlObjectShape( this._findUmlObjectByKey( selectable_key ), shape );
             }
           }
         }
@@ -7491,6 +7673,15 @@ toggle_panel
 
       // オブジェクトの削除
       if ( this._removeByKey( statuses ) ) return true;
+
+      // ENTERキーで選択中オブジェクトの文字入力を開始（グループならドリルイン）
+      if ( this._startInputtingByEnterKey( statuses ) ) return true;
+
+      // SHIFT+ENTERキーで包含しているグループへ選択を移動（ドリルアウト）
+      if ( this._selectParentGroupByShiftEnterKey( statuses ) ) return true;
+
+      // TABキーで同じ階層内の次のオブジェクトへ選択を移動
+      if ( this._selectNextUmlObjectByTabKey( statuses ) ) return true;
 
       // デバッグ出力
       if ( this._logByShortCutKey( statuses ) ) return true;
