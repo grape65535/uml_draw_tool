@@ -43,6 +43,7 @@ i18n_messages["ja"] = {
     "contextmenu_paste": "貼り付け",
     "contextmenu_plain_related_paste": "関連付けて貼り付け",
     "contextmenu_arrow_related_paste": "矢印で関連付けて貼り付け",
+    "contextmenu_connect_relation": "関連付け",
     "contextmenu_most_background": "最背面へ移動",
     "contextmenu_background": "背面へ移動",
     "contextmenu_foreground": "前面へ移動",

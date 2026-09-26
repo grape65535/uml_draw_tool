@@ -43,6 +43,7 @@ i18n_messages["en"] = {
     "contextmenu_paste": "paste",
     "contextmenu_plain_related_paste": "related paste",
     "contextmenu_arrow_related_paste": "arrow related paste",
+    "contextmenu_connect_relation": "connect with relation",
     "contextmenu_most_background": "show on most background",
     "contextmenu_background": "show on background",
     "contextmenu_foreground": "show on foreground",

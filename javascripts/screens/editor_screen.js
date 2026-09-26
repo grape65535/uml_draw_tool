@@ -7747,6 +7747,8 @@ toggle_panel
   <button id='contextmenu_plain_related_paste'>${ i18n.t( "ui.contextmenu_plain_related_paste" ) }</button><br/>
   <button id='contextmenu_arrow_related_paste'>${ i18n.t( "ui.contextmenu_arrow_related_paste" ) }</button><br/>
   <div style="width:187;  border_width_bottom:1;  border_color:#909090;  margin:8 0 12 0;"></div>
+  <button id='contextmenu_connect_relation'>${ i18n.t( "ui.contextmenu_connect_relation" ) }</button><br/>
+  <div style="width:187;  border_width_bottom:1;  border_color:#909090;  margin:8 0 12 0;"></div>
   <button id='contextmenu_most_background'>${ i18n.t( "ui.contextmenu_most_background" ) }</button><br/>
   <button id='contextmenu_background'>${ i18n.t( "ui.contextmenu_background" ) }</button><br/>
   <button id='contextmenu_foreground'>${ i18n.t( "ui.contextmenu_foreground" ) }</button><br/>
@@ -8167,6 +8169,7 @@ toggle_panel
 
         // 選択中の図形を関係線で関連付け（最初に選択した図形と、それ以降の図形を接続）
         case "filemenu_edit_connect_relation":
+        case "contextmenu_connect_relation":
           this._connectSelectedUmlObjectsByRelation();
           break;
 
