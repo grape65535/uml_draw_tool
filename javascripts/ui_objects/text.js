@@ -105,7 +105,10 @@ function Text(){
     this.caret.x = parent_caret.x;
     // 親のレイアウト可能最大幅を取得
     var parent_inline_width = this.parent.inlineWidth();
-    
+    // 親の横幅がmax-contentの時は、コンテンツ幅に合わせるので折り返さない
+    // （日本語などの非ASCII文字は1文字単位で折り返し可能なため、ここで抑止しないと1文字ずつ改行されてしまう）
+    var is_wrappable = ( "nowrap" != this.style.white_space && "pre" != this.style.white_space && "max-content" != this.parent.style.width );
+
     var layout_text = this.text;
     // 文字の前後の空白トリムと改行コードやタブは空白に変換し、連続した空白も1つに短縮する
     switch ( this.style.white_space ) {
@@ -145,7 +148,7 @@ function Text(){
       chunk += tmp;
 
       // 行に収まらない時
-      if ( "nowrap" != this.style.white_space && "pre" != this.style.white_space && getTextWidth( this._trimFirstSpace( chunk ), this.style.font_size ) > ( parent_inline_width - this.caret.x ) ) {
+      if ( is_wrappable && getTextWidth( this._trimFirstSpace( chunk ), this.style.font_size ) > ( parent_inline_width - this.caret.x ) ) {
         // 行に収まる文字が1文字以上あるのなら、展開された子オブジェクトとする
         if ( 1 < confirmed_chunk.length ) {
           this.appendObject( ( new ChildText() ).initialize( null, null, this._trimFirstSpace( confirmed_chunk ) ) );

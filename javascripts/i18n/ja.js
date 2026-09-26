@@ -1,0 +1,112 @@
+/*------------------------------------------------------------------------------
+  UI表示用文言（日本語）
+    file:// で開いた場合でも読み込めるよう、JSONではなくscript要素で読み込むJSとし、
+    グローバル変数 i18n_messages に言語コードをキーとして登録する。
+    言語を追加する時は、このファイルを複製して言語コードと文言を変更し、
+    index.html の i18n_manager.js より前に script 要素を追加する。
+------------------------------------------------------------------------------*/
+var i18n_messages = i18n_messages || {};
+i18n_messages["ja"] = {
+  "language_name": "日本語",
+  "title": "UML描画ツール",
+  "ui": {
+    "filemenu_file": "ファイル",
+    "filemenu_edit": "編集",
+    "filemenu_view": "表示",
+    "filemenu_file_save_json": "JSON形式で保存 ( cmd + s )",
+    "filemenu_file_save_pdf": "PDF形式で保存",
+    "filemenu_file_save_svg": "SVG形式で保存",
+    "filemenu_file_save_svg_embed_json": "SVG形式（JSON埋め込み）で保存",
+    "filemenu_edit_undo": "元に戻す ( cmd + z )",
+    "filemenu_edit_redo": "やり直す ( cmd + shift + z )",
+    "filemenu_edit_cut": "切り取り ( cmd + x )",
+    "filemenu_edit_copy": "コピー ( cmd + c )",
+    "filemenu_edit_paste": "貼り付け ( cmd + v )",
+    "filemenu_edit_plain_related_paste": "関連付けて貼り付け ( alt + ↓ )",
+    "filemenu_edit_arrow_related_paste": "矢印で関連付けて貼り付け ( cmd + ↓ )",
+    "filemenu_edit_most_background": "最背面へ移動 ( cmd + [ )",
+    "filemenu_edit_background": "背面へ移動 ( [ )",
+    "filemenu_edit_foreground": "前面へ移動 ( ] )",
+    "filemenu_edit_most_foreground": "最前面へ移動 ( cmd + ] )",
+    "filemenu_edit_group": "グループ化 ( cmd + g )",
+    "filemenu_edit_release_group": "グループ解除 ( cmd + shift + g )",
+    "filemenu_edit_set_default_params": "既定のパラメータに設定 ( cmd + d )",
+    "filemenu_view_50": "50%で表示",
+    "filemenu_view_75": "75%で表示",
+    "filemenu_view_100": "100%で表示",
+    "filemenu_view_125": "125%で表示",
+    "filemenu_view_150": "150%で表示",
+    "filemenu_view_200": "200%で表示",
+    "contextmenu_cut": "切り取り",
+    "contextmenu_copy": "コピー",
+    "contextmenu_paste": "貼り付け",
+    "contextmenu_plain_related_paste": "関連付けて貼り付け",
+    "contextmenu_arrow_related_paste": "矢印で関連付けて貼り付け",
+    "contextmenu_most_background": "最背面へ移動",
+    "contextmenu_background": "背面へ移動",
+    "contextmenu_foreground": "前面へ移動",
+    "contextmenu_most_foreground": "最前面へ移動",
+    "contextmenu_group": "グループ化",
+    "contextmenu_release_group": "グループ解除"
+  },
+  "params": {
+    "fontSize": "文字サイズ",
+    "nameAlign": "名前の横位置",
+    "textAlign": "文字の横位置",
+    "verticalAlign": "文字の縦位置",
+    "wordBreak": "折り返し",
+    "textColor": "文字色",
+    "pathStyle": "線の経路",
+    "lineStyle": "線種",
+    "lineStartStyle": "始点の形",
+    "lineEndStyle": "終点の形",
+    "lineWidth": "線の太さ",
+    "lineColor": "線の色",
+    "backgroundColor": "背景色"
+  },
+  "options": {
+    "left": "左寄せ",
+    "center": "中央",
+    "right": "右寄せ",
+    "top": "上寄せ",
+    "bottom": "下寄せ",
+    "normal": "単語単位",
+    "break": "文字単位",
+    "line": "直線",
+    "curve": "曲線",
+    "solid": "実線",
+    "dashed": "破線",
+    "dotted": "点線",
+    "none": "なし",
+    "arrow": "矢印",
+    "check_arrow": "チェック矢印",
+    "triangle_arrow": "三角矢印",
+    "triangle_arrow_black": "三角矢印(黒)",
+    "rhombus": "ひし形",
+    "rhombus_black": "ひし形(黒)",
+    "circle": "円",
+    "circle_black": "円(黒)"
+  },
+  "colors": {
+    "white": "白",
+    "gray": "灰色",
+    "black": "黒",
+    "pink": "ピンク",
+    "red": "赤",
+    "brown": "茶色",
+    "lightgreen": "黄緑",
+    "green": "緑",
+    "darkgreen": "深緑",
+    "skyblue": "水色",
+    "blue": "青",
+    "darkblue": "紺",
+    "yellow": "黄色",
+    "purple": "紫",
+    "transparent": "透明"
+  },
+  "messages": {
+    "cannot_place_image": "この画像を配置することはできません",
+    "confirm_open_in_new_tab": "このファイルを別タブで開きますか？",
+    "cannot_open_file": "このファイルを開くことはできません"
+  }
+};
