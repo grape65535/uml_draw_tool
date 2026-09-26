@@ -240,7 +240,8 @@ function Layouter(){
       if ( 0 == this.caret.x && this.children[i].objectName() == "Break" ) {
         this.caret.line_height = Math.max( this.style.font_size, this.style.line_height );
       }
-      if ( 0 < this.caret.x && ( this.children[i].style.display == "block" || this.inlineWidth() < this.caret.x + size.width ) ) {
+      // （横幅がmax-contentの時はコンテンツ幅に合わせるので、幅超過による改行はしない）
+      if ( 0 < this.caret.x && ( this.children[i].style.display == "block" || ( "max-content" != this.style.width && this.inlineWidth() < this.caret.x + size.width ) ) ) {
         this._layoutLineBreak();
       }
 
