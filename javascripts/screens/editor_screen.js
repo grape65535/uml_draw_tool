@@ -6251,6 +6251,249 @@ function EditorScreen(){
   };
 
   /*------------------------------------------------------------------------------
+    SVG
+  ------------------------------------------------------------------------------*/
+
+  //--------------------------------------
+  // 線のスタイルを適用してSVGに描画するラッパー
+  //--------------------------------------
+  EditorScreen.prototype._drawSvgLineWrapper = function( context, line_style, draw_function ){
+
+    if ( line_style ) {
+      switch( line_style ){
+      case "solid":
+        setSvgLineDash( context, [] );
+        break;
+
+      case "dashed":
+        setSvgLineDash( context, [ 5, 8 ] );
+        break;
+
+      case "dotted":
+        setSvgLineDash( context, [ 1, 5 ] );
+        break;
+      }
+    }
+    draw_function();
+    setSvgLineDash( context, [] );
+  }
+
+  //--------------------------------------
+  // 色名に対応するSVG用の色を取得する（transparentや未定義はnullを返す）
+  //--------------------------------------
+  EditorScreen.prototype._colorNameToSvgColor = function( context, color_name ){
+    var rgb = this._colorPalette()[ color_name ];
+    return rgb ? getSvgColor( context, rgb[0] / 255, rgb[1] / 255, rgb[2] / 255 ) : null;
+  };
+
+  //--------------------------------------
+  // 背景色（塗り）用のSVG用の色を取得する（transparentや未定義はnullを返す）
+  //--------------------------------------
+  EditorScreen.prototype._backgroundColorNameToSvgColor = function( context, color_name ){
+    var rgb = this._backgroundColorRgbComponents( color_name );
+    return rgb ? getSvgColor( context, rgb[0] / 255, rgb[1] / 255, rgb[2] / 255 ) : null;
+  };
+
+  //--------------------------------------
+  // UMLオブジェクトのSVGへの描画（PDFへの描画と同一ロジック）
+  //--------------------------------------
+  EditorScreen.prototype._drawSvgUmlObjectAt = function( context, base_x, base_y, uml_object, base_color, base_bg_color ){
+
+    // 子がいるなら先に描画する
+    for ( var key in uml_object.children ) {
+      this._drawSvgUmlObjectAt( context, base_x, base_y, uml_object.children[key], base_color, base_bg_color );
+    }
+
+    // 描画色の解決（オブジェクトのパラメータの色名を使い、無ければ引数の色にフォールバック）
+    var line_color = this._colorNameToSvgColor( context, uml_object.params["lineColor"] ) || base_color;
+    var text_color = this._colorNameToSvgColor( context, uml_object.params["textColor"] ) || base_color;
+    var is_transparent_bg = ( "transparent" == uml_object.params["backgroundColor"] );
+    var fill_color = this._backgroundColorNameToSvgColor( context, uml_object.params["backgroundColor"] ) || base_bg_color;
+
+    // 線幅の設定
+    setSvgLineWidth( context, uml_object.params["lineWidth"] || 1 );
+
+    // 描画順序について
+    // 線、図形、矩形の順で描画
+    //   矩形はテキスト表示領域となるので、最後に描画
+    //   線の上に関係線の図形を上書きするので、線を最初に描画
+
+    // 線の描画
+    this._drawSvgLineWrapper( context, uml_object.params["lineStyle"], function(){
+      if ( 2 > uml_object.inner_lines.length ) return;
+
+      var points = [];
+      for ( var i=0; i<uml_object.inner_lines.length; i++ ) {
+        points[i] = {
+          x: base_x + uml_object.inner_lines[i].x,
+          y: base_y + uml_object.inner_lines[i].y
+        };
+      }
+      if ( uml_object.params["pathStyle"] == "curve" ) {
+        var is_horizontal = ( ! uml_object.inner_lines[0].relation || isIncludeArray( [ "left", "right" ], uml_object.inner_lines[0].relation.base_type ) );
+        if ( 3 <= points.length ) {
+          if ( is_horizontal ) {
+            if ( points[0].y <= points[2].y && ( points[1].y < points[0].y || points[2].y < points[1].y  ) ) is_horizontal = false;
+            if ( points[0].y >  points[2].y && ( points[1].y < points[2].y || points[0].y < points[1].y  ) ) is_horizontal = false;
+          }
+          else {
+            if ( points[0].x <= points[2].x && ( points[1].x < points[0].x || points[2].x < points[1].x ) ) is_horizontal = true;
+            if ( points[0].x >  points[2].x && ( points[1].x < points[2].x || points[0].x < points[1].x ) ) is_horizontal = true;
+          }
+        }
+        drawSvgBezier( context, points, line_color, is_horizontal );
+      }
+      else {
+        drawSvgLines( context, points, line_color );
+      }
+    } );
+
+    // 各形状の描画
+    for ( var key in uml_object.inner_shapes ) {
+      var shape = uml_object.inner_shapes[key];
+      switch( shape.type ) {
+      case "line":
+        this._drawSvgLineWrapper( context, ( shape.line_style || uml_object.params["lineStyle"] ), function(){
+          drawSvgLine( context, base_x + shape.start.x, base_y + shape.start.y, base_x + shape.end.x, base_y + shape.end.y, line_color );
+        });
+        break;
+
+      case "rect":
+        if ( shape.fill && ! is_transparent_bg ) drawSvgRect( context, base_x + shape.x, base_y + shape.y, shape.width, shape.height, fill_color, true );
+        drawSvgRect( context, base_x + shape.x, base_y + shape.y, shape.width, shape.height, line_color, false );
+        break;
+
+      case "circle":
+        if ( shape.fill ) {
+          if ( shape.fill_border_color ) drawSvgCircle( context, base_x + shape.x, base_y + shape.y, shape.radius, line_color, true );
+          else if ( ! is_transparent_bg ) drawSvgCircle( context, base_x + shape.x, base_y + shape.y, shape.radius, fill_color, true );
+        }
+        drawSvgCircle( context, base_x + shape.x, base_y + shape.y, shape.radius, line_color, false );
+        break;
+
+      case "ellipse":
+        if ( shape.fill ) {
+          if ( shape.fill_border_color ) drawSvgEllipse( context, base_x + shape.x, base_y + shape.y, shape.radius_x, shape.radius_y, line_color, true );
+          else if ( ! is_transparent_bg ) drawSvgEllipse( context, base_x + shape.x, base_y + shape.y, shape.radius_x, shape.radius_y, fill_color, true );
+        }
+        drawSvgEllipse( context, base_x + shape.x, base_y + shape.y, shape.radius_x, shape.radius_y, line_color, false );
+        break;
+
+      case "polygon":
+        var polygon = [];
+        for ( var i=0; i<shape.polygon.length; i++ ) polygon.push( { x: base_x + shape.polygon[i].x, y: base_y + shape.polygon[i].y } );
+        if ( shape.fill ) {
+          if ( shape.fill_border_color ) drawSvgPolygon( context, polygon, line_color, true );
+          else if ( ! is_transparent_bg ) drawSvgPolygon( context, polygon, fill_color, true );
+        }
+        drawSvgPolygon( context, polygon, line_color, false );
+        break;
+
+      case "image":
+        var image_data = ( this.save_data.images ? this.save_data.images[ uml_object.image_hash ] : null );
+        if ( image_data ) {
+          drawSvgImageDataUrl( context, image_data.data_url, base_x + shape.x, base_y + shape.y, shape.width, shape.height );
+        }
+        break;
+      }
+    }
+
+    // 矩形描画
+    var font_size = uml_object.params["fontSize"] || 12;
+    for ( var key in uml_object.inner_rects ) {
+      var inner_rect = uml_object.inner_rects[key];
+      if ( inner_rect.fill && ! is_transparent_bg ) drawSvgRect( context, base_x + inner_rect.x, base_y + inner_rect.y, inner_rect.width, inner_rect.height, fill_color, true );
+      if ( inner_rect.is_border_visible ) drawSvgRect( context, base_x + inner_rect.x, base_y + inner_rect.y, inner_rect.width, inner_rect.height, line_color, false );
+      // テキストがある時は描画
+      if ( ! inner_rect.has_text ) continue;
+
+      var text_area_size = ( inner_rect.vertical_text ? inner_rect.height : inner_rect.width );
+      var text_rows = this._getLayouteText( inner_rect.text, font_size, text_area_size, ( "break" == uml_object.params["wordBreak"] ? true : false ) );
+      if ( 0 == text_rows.length ) continue;
+
+      clipSvgRect( context, base_x + inner_rect.x + 1, base_y + inner_rect.y + 1, inner_rect.width - 2, inner_rect.height - 2, function( clip_context ){
+        var x = base_x + inner_rect.x + 3;
+        var y = base_y + inner_rect.y + 3;
+
+        var align = "left";
+        if ( uml_object.params["textAlign"]                   ) align = uml_object.params["textAlign"];
+        if ( uml_object.params["nameAlign"] && key == "name" ) align = uml_object.params["nameAlign"];
+
+        // verticalAlignによる配置（Canvas描画と同一ロジック）。
+        // 横書きはY方向、縦書き（vertical_partition）はverticalAlignを横方向として扱いX方向へ配置する。
+        if ( "top" != ( uml_object.params["verticalAlign"] || "top" ) ) {
+          var vertical_align = uml_object.params["verticalAlign"];
+          var content_size = text_rows.length * ( font_size + 2 );
+          if ( inner_rect.vertical_text ) {
+            var area_width = inner_rect.width - 6;
+            var horizontal_offset = 0;
+            if ( "center" == vertical_align ) horizontal_offset = Math.round( ( area_width - content_size ) / 2 );
+            else if ( "bottom" == vertical_align ) horizontal_offset = ( area_width - content_size );
+            x += horizontal_offset;
+          }
+          else {
+            var area_height = inner_rect.height - 6;
+            var vertical_offset = 0;
+            if ( "center" == vertical_align ) vertical_offset = Math.round( ( area_height - content_size ) / 2 );
+            else if ( "bottom" == vertical_align ) vertical_offset = ( area_height - content_size );
+            y += vertical_offset;
+          }
+        }
+
+        for ( var i=0; i<text_rows.length; i++ ) {
+          var text_width = getTextWidth( text_rows[i], font_size );
+          var align_offset = 0;
+          switch( align ) {
+          case "left":
+            align_offset = 0;
+            break;
+
+          case "center":
+            align_offset = Math.round( ( text_area_size - text_width ) / 2 );
+            break;
+
+          case "right":
+            align_offset = text_area_size - text_width;
+            break;
+          }
+
+          // 縦書き
+          if ( inner_rect.vertical_text ) {
+            var offset_y = ( inner_rect.height - 6 ) - text_width;
+            drawSvgVerticalText( clip_context, text_rows[i], x, y + offset_y - align_offset, text_color, font_size );
+            x += font_size + 2;
+          }
+          // 横書き
+          else {
+            drawSvgText( clip_context, text_rows[i], x + align_offset, y, text_color, font_size );
+            y += font_size + 2;
+          }
+        }
+      } );
+    }
+  };
+
+  //--------------------------------------
+  // SVG出力
+  //--------------------------------------
+  EditorScreen.prototype._exportSvgBlob = function(){
+    // SVGコンテキストの初期化（背景は白）
+    var svg_context = initializeSvgContext( this.save_data.paper.width, this.save_data.paper.height, getSvgColor( null, 1, 1, 1 ) );
+    // 色の取得
+    var black_color = getSvgColor( svg_context, 0, 0, 0 );
+    var white_color = getSvgColor( svg_context, 1, 1, 1 );
+
+    // UMLオブジェクトの描画
+    for ( var i=0; i<this.save_data.priorities.length; i++ ) {
+      var uml_object = this.save_data.objects[ this.save_data.priorities[i] ];
+      this._drawSvgUmlObjectAt( svg_context, 0, 0, uml_object, black_color, white_color );
+    }
+
+    // SVG生成
+    return saveSvgAsBlob( svg_context );
+  };
+
+  /*------------------------------------------------------------------------------
     その他
   ------------------------------------------------------------------------------*/
 
@@ -6608,6 +6851,16 @@ function EditorScreen(){
   };
 
   //--------------------------------------
+  // SVGでファイル保存
+  //--------------------------------------
+  EditorScreen.prototype._saveAsSvg = function(){
+    var blob = this._exportSvgBlob();
+    var title_name = this._findLikelyFileTitle();
+    this.file_manager.downloadBlob( blob, `${ title_name || "uml_diagram" }_${ this._getDateTimeString( new Date() ) }.svg` );
+    $("title").text( title_name || "UML DrawTool" );
+  };
+
+  //--------------------------------------
   // ショートカットキーから保存
   //--------------------------------------
   EditorScreen.prototype._saveByShortCutKey = function( statuses ){
@@ -6781,6 +7034,7 @@ toggle_panel
 <toggle_panel id='filemenu_file_panel'>
   <button id='filemenu_file_save_json'>save as JSON ( cmd + s )</button><br/>
   <button id='filemenu_file_save_pdf'>save as PDF</button><br/>
+  <button id='filemenu_file_save_svg'>save as SVG</button><br/>
 </toggle_panel>
 <!-- 編集メニュー -->
 <toggle_panel id='filemenu_edit_panel'>
@@ -7149,6 +7403,11 @@ toggle_panel
         // データの保存（PDF）
         case "filemenu_file_save_pdf":
           this._saveAsPdf();
+          break;
+
+        // データの保存（SVG）
+        case "filemenu_file_save_svg":
+          this._saveAsSvg();
           break;
 
         // 編集メニュー
