@@ -6612,7 +6612,7 @@ function EditorScreen(){
       return data;
     }
 
-    // v0.10.0 以降のマイグレーションは以下に追加する（例: if ( 0 > this._compareVersion( data.version, "v0.11.0" ) ) { ... }）
+    // v1.10.0 以降のマイグレーションは以下に追加する（例: if ( 0 > this._compareVersion( data.version, "v1.11.0" ) ) { ... }）
 
     data.version = this.current_version;
     return data;
@@ -6641,7 +6641,7 @@ function EditorScreen(){
   };
 
   //--------------------------------------
-  // 旧形式（数値 1.9 以前）の保存データを 1.9 相当（= v0.10.0）にする
+  // 旧形式（数値 1.9 以前）の保存データを 1.9 相当（= v1.10.0）にする
   //--------------------------------------
   EditorScreen.prototype._upgradeLegacySaveData = function( data, legacy_version ){
     data.version = legacy_version;
@@ -6970,7 +6970,7 @@ function EditorScreen(){
 
     // アプリケーション名
     this.application_name = "uml_draw_tool";
-    this.current_version = "v0.10.0";
+    this.current_version = "v1.10.0";
 
     // 画像管理を生成
     this.image_manager = ( new ImageManager() ).initialize(this);
