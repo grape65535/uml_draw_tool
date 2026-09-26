@@ -4560,6 +4560,73 @@ function EditorScreen(){
   };
 
   //--------------------------------------
+  // UMLオブジェクト内の文字矩形の入力を開始する
+  //--------------------------------------
+  EditorScreen.prototype._startInputtingUmlObjectShape = function( uml_object, shape ){
+    var base_pos = this.findObjectByName( "paper" ).screenPosition();
+
+    this.inputting_uml_object = uml_object;
+    this.inputting_uml_object_shape = shape;
+    this.requestTextarea(
+      shape.text,
+      {
+        x: base_pos.x + ( ( shape.x + 3 ) * this.zoom_rate ),
+        y: base_pos.y + ( ( shape.y + 3 ) * this.zoom_rate ),
+        width:  ( ( shape.width - 6 ) * this.zoom_rate ),
+        height: ( ( shape.height - 6 ) * this.zoom_rate )
+      },
+      "rgb(0,0,0)",
+      this.inputting_uml_object.params.fontSize || 12,
+      ( this.inputting_uml_object.params.fontSize || 12 ) + 2,
+      0
+    );
+  };
+
+  //--------------------------------------
+  // 複数行テキストの入力エリアでのTABキー押下
+  //   入力中の文字を確定し、同じUMLオブジェクト内の次の（SHIFT併用時は前の）文字矩形へ入力を移動する。
+  //   文字矩形は位置順（上→下、左→右）に巡回する。
+  //--------------------------------------
+  EditorScreen.prototype.onTextareaTabKey = function( is_reverse ){
+    // UMLオブジェクトの文字入力中でなければ何もしない（ブラウザ標準動作に任せる）
+    if ( ! this.inputting_uml_object ) return false;
+
+    var uml_object = this.inputting_uml_object;
+    var current_shape = this.inputting_uml_object_shape;
+
+    // 同じオブジェクト内の文字入力可能な矩形を位置順に並べる
+    var text_shapes = [];
+    for ( var key in uml_object.inner_rects ) {
+      var inner_rect = uml_object.inner_rects[key];
+      if ( "rect" == inner_rect.type && inner_rect.has_text ) text_shapes.push( inner_rect );
+    }
+    text_shapes.sort( function( a, b ){
+      return ( a.y - b.y ) || ( a.x - b.x );
+    } );
+    var current_index = text_shapes.indexOf( current_shape );
+    if ( -1 == current_index ) return false;
+    var next_index = ( current_index + ( is_reverse ? -1 : 1 ) + text_shapes.length ) % text_shapes.length;
+
+    // UIオブジェクトにフォーカスが残っていると入力内容を取得できないため、先に解除しておく
+    if ( this.focus_ui_object ) {
+      this.focus_ui_object.blur();
+      this.focus_ui_object = null;
+    }
+
+    // 現在の入力を確定して編集内容を記録する
+    this._blurInputting();
+    this.data_manager.setData( this.save_data );
+
+    // 次の文字矩形の入力を開始する
+    this._startInputtingUmlObjectShape( uml_object, text_shapes[ next_index ] );
+
+    // 入力パイプライン外での描画となるため、ESC経由の確定と同様に同期的にレイアウトを更新しておく
+    this.screen_manager.relayout();
+    this.screen_manager.requestDraw( this );
+    return true;
+  };
+
+  //--------------------------------------
   // 何も無い場所のダブルクリックによるインスタントラベル入力を開始する
   //--------------------------------------
   EditorScreen.prototype._startInstantLabelInput = function( position ){
@@ -4758,23 +4825,7 @@ function EditorScreen(){
             var shape = this._getUmlObjectInnerShapeByKey( selectable_key );
             // 文字入力を行う
             if ( shape && "rect" == shape.type && shape.has_text ) {
-              var base_pos = this.findObjectByName( "paper" ).screenPosition();
-        
-              this.inputting_uml_object = this._findUmlObjectByKey( selectable_key );
-              this.inputting_uml_object_shape = shape;
-              this.requestTextarea(
-                shape.text,
-                { 
-                  x: base_pos.x + ( ( shape.x + 3 ) * this.zoom_rate ),
-                  y: base_pos.y + ( ( shape.y + 3 ) * this.zoom_rate ),
-                  width:  ( ( shape.width - 6 ) * this.zoom_rate ),
-                  height: ( ( shape.height - 6 ) * this.zoom_rate ) 
-                },
-                "rgb(0,0,0)", 
-                this.inputting_uml_object.params.fontSize || 12,
-                ( this.inputting_uml_object.params.fontSize || 12 ) + 2,
-                0
-              );
+              this._startInputtingUmlObjectShape( this._findUmlObjectByKey( selectable_key ), shape );
             }
           }
         }

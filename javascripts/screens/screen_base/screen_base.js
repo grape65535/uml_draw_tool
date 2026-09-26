@@ -238,6 +238,13 @@ function ScreenBase(){
       if ( event.keyCode == 27 ) {
         this.canvas_textarea.trigger( "press_esc" );
       }
+      // 文字変換中でなくて、TABキーを押下（SHIFT併用で逆順）
+      else if ( event.keyCode == 9 && ! ( event.originalEvent && event.originalEvent.isComposing ) ) {
+        // 画面側で処理した場合のみ、ブラウザ標準のフォーカス移動を抑止する
+        if ( this.onTextareaTabKey( event.shiftKey ) ) {
+          event.preventDefault();
+        }
+      }
     }.bind(this) );
 
     this._initializeInstance( width, height );
@@ -470,6 +477,15 @@ function ScreenBase(){
       return this.canvas_textarea.val();
     }
     return "";
+  };
+
+  //--------------------------------------
+  // 複数行テキストの入力エリアでのTABキー押下
+  //   is_reverse : SHIFT併用（逆順）か
+  //   戻り値     : 処理した場合はtrue（ブラウザ標準のTAB動作を抑止する）
+  //--------------------------------------
+  ScreenBase.prototype.onTextareaTabKey = function( is_reverse ){
+    return false;
   };
 
   //--------------------------------------
