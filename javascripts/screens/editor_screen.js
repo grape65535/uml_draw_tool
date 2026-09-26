@@ -4607,6 +4607,8 @@ function EditorScreen(){
   //--------------------------------------
   EditorScreen.prototype._startInputtingByEnterKey = function( statuses ){
     if ( ! statuses.isDownKey( KEYCODE_ENTER ) ) return false;
+    // SHIFT+ENTERはグループへのドリルアウト（_selectParentGroupByShiftEnterKey）で扱う
+    if ( statuses.isPressKey( KEYCODE_SHIFT ) ) return false;
     // 既に文字入力中なら何もしない
     if ( this.inputting_uml_object || this.inputting_instant_label ) return false;
     // ボタン以外のUIオブジェクト（パラメータ欄等）にフォーカスがある時は、そちらのENTER操作を優先する
@@ -4639,6 +4641,32 @@ function EditorScreen(){
     this._hideContextMenu();
 
     this._startInputtingUmlObjectShape( uml_object, shape );
+    return true;
+  };
+
+  //--------------------------------------
+  // SHIFT+ENTERキーでグループ内の選択中オブジェクトを直接包含しているグループへ選択を移動する（ドリルアウト）
+  //   ENTERキーによるグループ内へのドリルイン（_startInputtingByEnterKey）と対になる操作。
+  //--------------------------------------
+  EditorScreen.prototype._selectParentGroupByShiftEnterKey = function( statuses ){
+    if ( ! statuses.isDownKey( KEYCODE_ENTER ) || ! statuses.isPressKey( KEYCODE_SHIFT ) ) return false;
+    // 文字入力中は textarea 側で処理するため何もしない
+    if ( this.inputting_uml_object || this.inputting_instant_label ) return false;
+    // ボタン以外のUIオブジェクト（パラメータ欄等）にフォーカスがある時は何もしない
+    if ( this.focus_ui_object && "Button" != this.focus_ui_object.objectName() ) return false;
+    // 単一選択の時のみ
+    if ( 1 != this.select_uml_object_ids.length ) return false;
+
+    // グループ内のオブジェクトでなければ何もしない
+    var selected_key = this._getUmlObjectBaseKeyByKey( this.select_uml_object_ids[0] );
+    var separator_index = selected_key.lastIndexOf( ".children." );
+    if ( -1 == separator_index ) return false;
+
+    // 右クリックメニューが開いていれば閉じる
+    this._hideContextMenu();
+
+    this._selectUmlObjectByKey( selected_key.slice( 0, separator_index ) );
+    this.screen_manager.requestDraw( this );
     return true;
   };
 
@@ -7646,8 +7674,11 @@ toggle_panel
       // オブジェクトの削除
       if ( this._removeByKey( statuses ) ) return true;
 
-      // ENTERキーで選択中オブジェクトの文字入力を開始
+      // ENTERキーで選択中オブジェクトの文字入力を開始（グループならドリルイン）
       if ( this._startInputtingByEnterKey( statuses ) ) return true;
+
+      // SHIFT+ENTERキーで包含しているグループへ選択を移動（ドリルアウト）
+      if ( this._selectParentGroupByShiftEnterKey( statuses ) ) return true;
 
       // TABキーで同じ階層内の次のオブジェクトへ選択を移動
       if ( this._selectNextUmlObjectByTabKey( statuses ) ) return true;
