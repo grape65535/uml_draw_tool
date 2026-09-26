@@ -6603,8 +6603,48 @@ function EditorScreen(){
   //--------------------------------------
   EditorScreen.prototype._upgradeSaveData = function( data ){
     if ( ! data || ! data.version ) return data;
-    data.version = parseFloat( data.version );
-    if ( data.version >= this.current_version ) return data;
+
+    // 旧形式（数値 1.9 以前）のバージョンは、旧マイグレーションを適用してから現行形式へ移行する
+    if ( this._isLegacyVersion( data.version ) ) {
+      this._upgradeLegacySaveData( data, parseFloat( data.version ) );
+    }
+    else if ( 0 <= this._compareVersion( data.version, this.current_version ) ) {
+      return data;
+    }
+
+    // v1.10.0 以降のマイグレーションは以下に追加する（例: if ( 0 > this._compareVersion( data.version, "v1.11.0" ) ) { ... }）
+
+    data.version = this.current_version;
+    return data;
+  };
+
+  //--------------------------------------
+  // 旧形式（数値）のバージョン表記か判定する
+  //--------------------------------------
+  EditorScreen.prototype._isLegacyVersion = function( version ){
+    return ! /^v?\d+\.\d+\.\d+$/.test( String( version ) );
+  };
+
+  //--------------------------------------
+  // バージョン（vメジャー.マイナー.パッチ）を比較する（a<b:負 / a==b:0 / a>b:正）
+  //--------------------------------------
+  EditorScreen.prototype._compareVersion = function( a, b ){
+    var parse = function( version ){
+      return String( version ).replace( /^v/, "" ).split( "." ).map( function( n ){ return parseInt( n, 10 ) || 0; } );
+    };
+    var va = parse( a );
+    var vb = parse( b );
+    for ( var i=0; i<3; i++ ) {
+      if ( va[i] != vb[i] ) return va[i] - vb[i];
+    }
+    return 0;
+  };
+
+  //--------------------------------------
+  // 旧形式（数値 1.9 以前）の保存データを 1.9 相当（= v1.10.0）にする
+  //--------------------------------------
+  EditorScreen.prototype._upgradeLegacySaveData = function( data, legacy_version ){
+    data.version = legacy_version;
 
     if ( 1.04 > data.version ) {
       // wordBreak属性を追加する
@@ -6753,9 +6793,6 @@ function EditorScreen(){
       // 画像オブジェクト用の画像バイナリプールを追加する
       data.images = data.images || {};
     }
-
-    data.version = this.current_version;
-    return data;
   };
 
   //--------------------------------------
@@ -6933,7 +6970,7 @@ function EditorScreen(){
 
     // アプリケーション名
     this.application_name = "uml_draw_tool";
-    this.current_version = 1.9;
+    this.current_version = "v1.10.0";
 
     // 画像管理を生成
     this.image_manager = ( new ImageManager() ).initialize(this);
@@ -7040,7 +7077,7 @@ toggle_panel
     <button id='filemenu_edit'>Edit</button>
     <button id='filemenu_view'>View</button>
   </div>
-  <div class='right'>Ver ${ this.current_version }</div>
+  <div class='right'>${ this.current_version }</div>
 </header>
 <div id="contents">
   <!-- サイドメニュー -->
