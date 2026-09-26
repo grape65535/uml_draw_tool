@@ -120,10 +120,24 @@ function DataManager(){
   };
 
   //--------------------------------------
+  // 戻せる？
+  //--------------------------------------
+  DataManager.prototype.canUndo = function(){
+    return ( 0 < this.history_index && 1 < this.histories.length );
+  };
+
+  //--------------------------------------
+  // やり直せる？
+  //--------------------------------------
+  DataManager.prototype.canRedo = function(){
+    return ( this.histories.length - 1 > this.history_index && 1 < this.histories.length );
+  };
+
+  //--------------------------------------
   // 戻す
   //--------------------------------------
   DataManager.prototype.undo = function(){
-    if ( 0 < this.history_index && 1 < this.histories.length ) {
+    if ( this.canUndo() ) {
       this.history_index--;
       // 履歴と参照を共有しないよう複製したものを現在データとする
       this.data = deepCopy( this.histories[ this.history_index ] );
@@ -135,7 +149,7 @@ function DataManager(){
   // やり直す
   //--------------------------------------
   DataManager.prototype.redo = function(){
-    if ( this.histories.length - 1 > this.history_index && 1 < this.histories.length ) {
+    if ( this.canRedo() ) {
       this.history_index++;
       // 履歴と参照を共有しないよう複製したものを現在データとする
       this.data = deepCopy( this.histories[ this.history_index ] );

@@ -4872,6 +4872,93 @@ function EditorScreen(){
   }
 
   //--------------------------------------
+  // 仮想クリップボードにペースト可能なデータがある？
+  //--------------------------------------
+  EditorScreen.prototype._hasClipboardData = function(){
+    // 描画中にも呼ばれるため、localStorageが利用できない環境でも例外で描画を止めない
+    try { this._loadClipboard(); } catch ( e ) {}
+    return !! ( this.clipboard && this.clipboard.data && 0 < this.clipboard.data.length );
+  };
+
+  //--------------------------------------
+  // 編集メニュー・右クリックメニューの各項目が実行可能かを取得する
+  //   キーはメニュー項目名から「filemenu_edit_」「contextmenu_」を除いたもの
+  //--------------------------------------
+  EditorScreen.prototype._getEditMenuAvailabilities = function(){
+    var selected_count = this.select_uml_object_ids.length;
+    var is_selected = ( 0 < selected_count );
+
+    // 関連線をつけてペースト：選択中の図形があり、グループそのものを選択していない
+    var can_related_paste = is_selected;
+    var selected_entities = this._selectedUmlObjects();
+    for ( var i=0; i<selected_entities.length; i++ ) {
+      if ( ! selected_entities[i] || "group" == selected_entities[i].type ) can_related_paste = false;
+    }
+
+    // 関連付け：関連線以外の図形が2つ以上選択されている
+    var connectable_count = 0;
+    for ( var i=0; i<selected_entities.length; i++ ) {
+      if ( selected_entities[i] && "relation" != selected_entities[i].type ) connectable_count++;
+    }
+
+    // 関連線の最適化・向きの逆転：対象となる関連線がある
+    var has_target_relations = ( is_selected && 0 < this._collectSelectedTargetRelations().length );
+
+    // グループ解除：選択中の図形（の根）にグループがある
+    var has_group = false;
+    for ( var i=0; i<selected_count; i++ ) {
+      var root_uml_object = this._getRootUmlObjectByKey( this.select_uml_object_ids[i] );
+      if ( root_uml_object && "group" == root_uml_object.type ) has_group = true;
+    }
+
+    // パラメータ初期値の設定：グループ以外の図形を1つだけ選択している
+    var can_set_default_params = ( 1 == selected_count && selected_entities[0] && "group" != selected_entities[0].type );
+
+    var has_clipboard_data = this._hasClipboardData();
+
+    return {
+      undo:                this.data_manager.canUndo(),
+      redo:                this.data_manager.canRedo(),
+      cut:                 is_selected,
+      copy:                is_selected,
+      paste:               has_clipboard_data,
+      plain_related_paste: can_related_paste,
+      arrow_related_paste: can_related_paste,
+      connect_relation:    ( 2 <= connectable_count ),
+      optimize_relation:   has_target_relations,
+      reverse_relation:    has_target_relations,
+      most_background:     is_selected,
+      background:          is_selected,
+      foreground:          is_selected,
+      most_foreground:     is_selected,
+      group:               ( 2 <= selected_count ),
+      release_group:       has_group,
+      set_default_params:  !! can_set_default_params,
+    };
+  };
+
+  //--------------------------------------
+  // 表示中のメニューについて、実行できない項目をグレーアウトする
+  //--------------------------------------
+  EditorScreen.prototype._refreshMenuAvailabilities = function(){
+    var menus = [
+      { panel_name: "filemenu_edit_panel", prefix: "filemenu_edit_" },
+      { panel_name: "context_menu_panel",  prefix: "contextmenu_" },
+    ];
+    var availabilities = null;
+    for ( var i=0; i<menus.length; i++ ) {
+      var panel = this.findObjectByName( menus[i].panel_name );
+      if ( ! panel || ! panel.isShow() ) continue;
+
+      if ( ! availabilities ) availabilities = this._getEditMenuAvailabilities();
+      for ( var key in availabilities ) {
+        var button = this.findObjectByName( menus[i].prefix + key );
+        if ( button ) button.setDisabled( ! availabilities[ key ] );
+      }
+    }
+  };
+
+  //--------------------------------------
   // 右クリックメニューを非表示にする
   //--------------------------------------
   EditorScreen.prototype._hideContextMenu = function(){
@@ -8033,6 +8120,9 @@ toggle_panel
   // 描画
   //--------------------------------------
   EditorScreen.prototype.draw = function( context ){
+    // 表示中のメニューの実行できない項目をグレーアウトする
+    this._refreshMenuAvailabilities();
+
     Object.getPrototypeOf(Object.getPrototypeOf(this)).draw.call( this, context, function( context ){
       // absolute系の描画の前に以下を描画させる
 
