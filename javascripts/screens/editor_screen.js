@@ -6285,6 +6285,7 @@ function EditorScreen(){
   //--------------------------------------
   // 選択中の図形の最初に選択した図形と、それ以降に選択した図形との間を関係線で接続する
   //   関係線は可能な限り図形の上を通らない経路（接続する辺・中継点）を選ぶ
+  //   既に関係線で接続されている図形同士の場合は、新たに作成せずに既存の関係線の経路を最適化する
   //--------------------------------------
   EditorScreen.prototype._connectSelectedUmlObjectsByRelation = function(){
     // 関係線は接続対象にしない
@@ -6301,9 +6302,21 @@ function EditorScreen(){
     // 経路の障害物となる図形（グループは末端まで展開）
     var obstacle_uml_objects = this._collectRouteObstacleUmlObjects();
 
+    // 既存の関係線
+    var all_relations = this._collectRelationUmlObjects();
+
     var base_uml_object = target_uml_objects[0];
     var is_created = false;
     for ( var i=1; i<target_uml_objects.length; i++ ) {
+      // 既に関係線で接続されているなら、その関係線を最適化する
+      var exist_relations = this._findRelationsBetweenUmlObjects( base_uml_object, target_uml_objects[i], all_relations );
+      if ( 0 < exist_relations.length ) {
+        for ( var j=0; j<exist_relations.length; j++ ) {
+          if ( this._optimizeRelationRoute( exist_relations[j], obstacle_uml_objects ) ) is_created = true;
+        }
+        continue;
+      }
+
       var route = this._findRelationRoute( base_uml_object, target_uml_objects[i], obstacle_uml_objects );
       if ( ! route ) continue;
 
@@ -6336,6 +6349,8 @@ function EditorScreen(){
     }
     if ( ! is_created ) return true;
 
+    // 選択中の関係線の中継点が作り直された可能性があるので操作用のトグルを作り直す
+    this._generateDraggableToggles();
     // 紙サイズの修正
     this._refreshPaperSize();
     // データの記録
@@ -6431,6 +6446,32 @@ function EditorScreen(){
       }
     }
     return uml_objects;
+  };
+
+  //--------------------------------------
+  // 2つの図形（グループの場合はグループ内の末端の図形）の間を接続している関係線を取得する
+  //   関係線の向き（始点・終点）は問わない
+  //--------------------------------------
+  EditorScreen.prototype._findRelationsBetweenUmlObjects = function( uml_object_a, uml_object_b, relations ){
+    var collectLeafIds = function( uml_object ){
+      var ids = {};
+      var leaves = ( "group" == uml_object.type ? this._collectRouteObstacleUmlObjects( uml_object ) : [ uml_object ] );
+      for ( var i=0; i<leaves.length; i++ ) ids[ leaves[i].id ] = true;
+      return ids;
+    }.bind( this );
+    var ids_a = collectLeafIds( uml_object_a );
+    var ids_b = collectLeafIds( uml_object_b );
+
+    var result = [];
+    for ( var i=0; i<relations.length; i++ ) {
+      var start_line = relations[i].inner_lines[0];
+      var end_line   = relations[i].inner_lines[ relations[i].inner_lines.length - 1 ];
+      if ( ! start_line.relation || ! end_line.relation ) continue;
+      var start_id = start_line.relation.id;
+      var end_id   = end_line.relation.id;
+      if ( ( ids_a[ start_id ] && ids_b[ end_id ] ) || ( ids_b[ start_id ] && ids_a[ end_id ] ) ) result.push( relations[i] );
+    }
+    return result;
   };
 
   //--------------------------------------
