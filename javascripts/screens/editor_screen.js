@@ -995,6 +995,7 @@ function EditorScreen(){
     // 同じ根のキーは無いので追加する
     this._setSelectedUmlObjectParams();
     this.select_uml_object_ids.push( root_uml_object.id );
+    this._recordSelectOrder( root_uml_object.id );
     this._sortSelectedUmlObjectByPriority();
     this._generateDraggableToggles();
     this._refreshSelectedUmlObjectParams();
@@ -1016,9 +1017,42 @@ function EditorScreen(){
     // 同じ根のキーは無いので選択を切替える
     this._setSelectedUmlObjectParams();
     this.select_uml_object_ids = [ root_uml_object.id ];
+    this.select_order_root_ids = [ root_uml_object.id ];
     this._generateDraggableToggles();
     this._refreshSelectedUmlObjectParams();
     return false;
+  };
+
+  //--------------------------------------
+  // 選択した順序を記録する
+  //--------------------------------------
+  EditorScreen.prototype._recordSelectOrder = function( root_uml_object_id ){
+    if ( ! this.select_order_root_ids ) this.select_order_root_ids = [];
+    removeArray( this.select_order_root_ids, root_uml_object_id );
+    this.select_order_root_ids.push( root_uml_object_id );
+  };
+
+  //--------------------------------------
+  // 選択済みのUMLオブジェクトを選択した順序で取得する
+  //   選択順の記録が無いもの（全選択等）は、記録済みのものの後ろに描画優先順で並べる
+  //--------------------------------------
+  EditorScreen.prototype._selectedUmlObjectsBySelectOrder = function(){
+    var order_ids = this.select_order_root_ids || [];
+    var entries = [];
+    for ( var i=0; i<this.select_uml_object_ids.length; i++ ) {
+      var uml_object = this._findUmlObjectByKey( this.select_uml_object_ids[i] );
+      var root_uml_object = this._getRootUmlObjectByKey( this.select_uml_object_ids[i] );
+      if ( ! uml_object || ! root_uml_object ) continue;
+      var order = order_ids.indexOf( root_uml_object.id );
+      entries.push( { uml_object: uml_object, order: ( 0 <= order ? order : order_ids.length + i ), index: i } );
+    }
+    entries.sort( function( a, b ){ return ( a.order - b.order ) || ( a.index - b.index ); } );
+
+    var selected_uml_objects = [];
+    for ( var i=0; i<entries.length; i++ ) {
+      selected_uml_objects.push( entries[i].uml_object );
+    }
+    return selected_uml_objects;
   };
 
   //--------------------------------------
@@ -1027,6 +1061,7 @@ function EditorScreen(){
   EditorScreen.prototype._clearSelectedAllUmlObject = function(){
     this._setSelectedUmlObjectParams();
     this.select_uml_object_ids = [];
+    this.select_order_root_ids = [];
     this._generateDraggableToggles();
     this._refreshSelectedUmlObjectParams();
   };
@@ -1044,6 +1079,7 @@ function EditorScreen(){
       if ( root_uml_object.id == current_root_uml_object.id ) {
         this._setSelectedUmlObjectParams();
         this.select_uml_object_ids.splice( i, 1 );
+        if ( this.select_order_root_ids ) removeArray( this.select_order_root_ids, current_root_uml_object.id );
         this._generateDraggableToggles();
         this._refreshSelectedUmlObjectParams();
         return;
@@ -6243,6 +6279,291 @@ function EditorScreen(){
   };
 
   /*------------------------------------------------------------------------------
+    関連付け（選択中の図形同士を関係線で接続）
+  ------------------------------------------------------------------------------*/
+
+  //--------------------------------------
+  // 選択中の図形の最初に選択した図形と、それ以降に選択した図形との間を関係線で接続する
+  //   関係線は可能な限り図形の上を通らない経路（接続する辺・中継点）を選ぶ
+  //--------------------------------------
+  EditorScreen.prototype._connectSelectedUmlObjectsByRelation = function(){
+    // 関係線は接続対象にしない
+    var selected_uml_objects = this._selectedUmlObjectsBySelectOrder();
+    var target_uml_objects = [];
+    for ( var i=0; i<selected_uml_objects.length; i++ ) {
+      if ( "relation" == selected_uml_objects[i].type ) continue;
+      target_uml_objects.push( selected_uml_objects[i] );
+    }
+
+    // 2つ以上の図形が選択されていなければ何もしない
+    if ( 2 > target_uml_objects.length ) return true;
+
+    // 経路の障害物となる図形（グループは末端まで展開）
+    var obstacle_uml_objects = this._collectRouteObstacleUmlObjects();
+
+    var base_uml_object = target_uml_objects[0];
+    var is_created = false;
+    for ( var i=1; i<target_uml_objects.length; i++ ) {
+      var route = this._findRelationRoute( base_uml_object, target_uml_objects[i], obstacle_uml_objects );
+      if ( ! route ) continue;
+
+      // 関係線を作成
+      var relation_uml_object = this._createInitializedUmlObject( "relation" );
+      var inner_lines = [ { index:0, type:"inner-line-start", x:route.start_contact.contact.x, y:route.start_contact.contact.y, relation:null } ];
+      for ( var j=0; j<route.relay_points.length; j++ ) {
+        inner_lines.push( { index:inner_lines.length, type:"inner-line-relay", x:route.relay_points[j].x, y:route.relay_points[j].y, relation:null } );
+      }
+      inner_lines.push( { index:inner_lines.length, type:"inner-line-end", x:route.end_contact.contact.x, y:route.end_contact.contact.y, relation:null } );
+      relation_uml_object.inner_lines = inner_lines;
+
+      // オブジェクトを登録する
+      this.save_data.objects[ relation_uml_object.id ] = relation_uml_object;
+      this.save_data.priorities.push( relation_uml_object.id );
+
+      // リレーションする
+      var start_line = relation_uml_object.inner_lines[0];
+      var end_line   = relation_uml_object.inner_lines[ relation_uml_object.inner_lines.length - 1 ];
+      this._linkRelation( relation_uml_object, start_line, route.start_contact );
+      this._linkRelation( relation_uml_object, end_line,   route.end_contact );
+
+      // 内部線からUMLオブジェクト矩形を正規化する
+      this._updateRelationInnerLineUmlObject( relation_uml_object, start_line, route.start_contact.owner );
+      this._updateRelationInnerLineUmlObject( relation_uml_object, end_line,   route.end_contact.owner );
+
+      // 関係線の終端矩形を更新
+      relation_uml_object.inner_shapes = this._refreshInnerShape( relation_uml_object, relation_uml_object.type );
+      is_created = true;
+    }
+    if ( ! is_created ) return true;
+
+    // 紙サイズの修正
+    this._refreshPaperSize();
+    // データの記録
+    this.data_manager.setData( this.save_data );
+    // 再描画
+    this.screen_manager.requestDraw( this );
+    return true;
+  };
+
+  //--------------------------------------
+  // 関係線の経路の障害物となる図形（関係線以外の末端オブジェクト）を全て取得する
+  //   parentを指定した場合はそのグループ内の末端オブジェクトを取得する
+  //--------------------------------------
+  EditorScreen.prototype._collectRouteObstacleUmlObjects = function( parent ){
+    var uml_objects = [];
+    var priorities = parent ? parent.priorities : this.save_data.priorities;
+    for ( var i=0; i<priorities.length; i++ ) {
+      var uml_object = parent ? parent.children[ priorities[i] ] : this.save_data.objects[ priorities[i] ];
+      if ( ! uml_object || "relation" == uml_object.type ) continue;
+      if ( "group" == uml_object.type ) {
+        uml_objects.push( ...this._collectRouteObstacleUmlObjects( uml_object ) );
+      }
+      else {
+        uml_objects.push( uml_object );
+      }
+    }
+    return uml_objects;
+  };
+
+  //--------------------------------------
+  // 2つの図形を接続する関係線の経路を探す
+  //   上下左右の接続辺の組み合わせと、直線・中継点を持つ直角の経路を候補とし、
+  //   図形の上を通る量が最も少なく、短く、曲がりの少ない経路を選ぶ。
+  //   グループの場合は、グループ内の末端の図形のいずれかに接続する。
+  //   戻り値
+  //     { start_contact: 始点の接点情報, end_contact: 終点の接点情報, relay_points: [中継点] }
+  //--------------------------------------
+  EditorScreen.prototype._findRelationRoute = function( start_uml_object, end_uml_object, obstacle_uml_objects ){
+    var start_leaves = ( "group" == start_uml_object.type ? this._collectRouteObstacleUmlObjects( start_uml_object ) : [ start_uml_object ] );
+    var end_leaves   = ( "group" == end_uml_object.type   ? this._collectRouteObstacleUmlObjects( end_uml_object )   : [ end_uml_object ] );
+
+    var best = null;
+    for ( var i=0; i<start_leaves.length; i++ ) {
+      for ( var j=0; j<end_leaves.length; j++ ) {
+        if ( start_leaves[i] === end_leaves[j] ) continue;
+        var route = this._findRelationRouteBetweenLeaves( start_leaves[i], end_leaves[j], obstacle_uml_objects );
+        if ( route && ( ! best || route.cost < best.cost ) ) best = route;
+      }
+    }
+    return best;
+  };
+
+  //--------------------------------------
+  // 2つの末端の図形を接続する関係線の経路を探す
+  //--------------------------------------
+  EditorScreen.prototype._findRelationRouteBetweenLeaves = function( start_uml_object, end_uml_object, obstacle_uml_objects ){
+    var MARGIN = 20;        // 図形から関係線を離す距離
+    var ROUTE_PADDING = 4;  // 図形と重なっているとみなす距離
+    var DIRECTION_VECTORS = [ { x:0, y:-1 }, { x:1, y:0 }, { x:0, y:1 }, { x:-1, y:0 } ];
+
+    // 障害物の矩形を作成する
+    //   図形の枠線に沿って線が重ならない様に、少し外側に広げた矩形とする
+    //   接続元・接続先を包含する図形（フレーム等）は線が通らざるを得ないので障害物にしない
+    var isContainRect = function( outer, inner ){
+      return outer.x <= inner.x && outer.y <= inner.y && inner.x + inner.width <= outer.x + outer.width && inner.y + inner.height <= outer.y + outer.height;
+    };
+    var obstacles = [];
+    for ( var i=0; i<obstacle_uml_objects.length; i++ ) {
+      var obstacle = obstacle_uml_objects[i];
+      if ( obstacle !== start_uml_object && obstacle !== end_uml_object ) {
+        if ( isContainRect( obstacle, start_uml_object ) || isContainRect( obstacle, end_uml_object ) ) continue;
+      }
+      obstacles.push( {
+        x: obstacle.x - ROUTE_PADDING,
+        y: obstacle.y - ROUTE_PADDING,
+        width: obstacle.width + ROUTE_PADDING * 2,
+        height: obstacle.height + ROUTE_PADDING * 2,
+        original: { x: obstacle.x, y: obstacle.y, width: obstacle.width, height: obstacle.height },
+        allowance: ROUTE_PADDING * 2,
+      } );
+    }
+
+    // 迂回経路の通り道の候補（接続元・接続先の周囲、及び周辺の図形の外側）
+    var around_rect = this._getRectByUmlObjects( [ start_uml_object, end_uml_object ] );
+    var channel_xs = [ around_rect.x - MARGIN, around_rect.x + around_rect.width + MARGIN ];
+    var channel_ys = [ around_rect.y - MARGIN, around_rect.y + around_rect.height + MARGIN ];
+    var search_rect = { x: around_rect.x - 200, y: around_rect.y - 200, width: around_rect.width + 400, height: around_rect.height + 400 };
+    for ( var i=0; i<obstacle_uml_objects.length; i++ ) {
+      var obstacle = obstacle_uml_objects[i];
+      if ( ! isCollisionRectAndRect( search_rect.x, search_rect.y, search_rect.width, search_rect.height, obstacle.x, obstacle.y, obstacle.width, obstacle.height ) ) continue;
+      channel_xs.push( obstacle.x - MARGIN, obstacle.x + obstacle.width + MARGIN );
+      channel_ys.push( obstacle.y - MARGIN, obstacle.y + obstacle.height + MARGIN );
+    }
+
+    // 上下左右の接点
+    var start_contacts = [];
+    var end_contacts = [];
+    for ( var direction=0; direction<4; direction++ ) {
+      start_contacts[ direction ] = this._getContactUmlObjectOutlineByDirection( start_uml_object, direction );
+      end_contacts[ direction ]   = this._getContactUmlObjectOutlineByDirection( end_uml_object, direction );
+    }
+
+    var best = null;
+    for ( var start_direction=0; start_direction<4; start_direction++ ) {
+      for ( var end_direction=0; end_direction<4; end_direction++ ) {
+        var start_contact = start_contacts[ start_direction ];
+        var end_contact = end_contacts[ end_direction ];
+        if ( ! start_contact || ! end_contact ) continue;
+        var start_point = start_contact.contact;
+        var end_point = end_contact.contact;
+
+        // 図形から垂直に離れた点
+        var start_stub = { x: start_point.x + DIRECTION_VECTORS[ start_direction ].x * MARGIN, y: start_point.y + DIRECTION_VECTORS[ start_direction ].y * MARGIN };
+        var end_stub   = { x: end_point.x   + DIRECTION_VECTORS[ end_direction ].x   * MARGIN, y: end_point.y   + DIRECTION_VECTORS[ end_direction ].y   * MARGIN };
+
+        // 経路の候補
+        var candidates = [ [ start_point, end_point ] ];
+        var xs = channel_xs.concat( [ start_stub.x, end_stub.x, Math.round( ( start_stub.x + end_stub.x ) / 2 ) ] );
+        var ys = channel_ys.concat( [ start_stub.y, end_stub.y, Math.round( ( start_stub.y + end_stub.y ) / 2 ) ] );
+        for ( var k=0; k<xs.length; k++ ) {
+          candidates.push( [ start_point, start_stub, { x: xs[k], y: start_stub.y }, { x: xs[k], y: end_stub.y }, end_stub, end_point ] );
+        }
+        for ( var k=0; k<ys.length; k++ ) {
+          candidates.push( [ start_point, start_stub, { x: start_stub.x, y: ys[k] }, { x: end_stub.x, y: ys[k] }, end_stub, end_point ] );
+        }
+
+        for ( var k=0; k<candidates.length; k++ ) {
+          var points = this._simplifyRoutePoints( candidates[k] );
+          var cost = this._evaluateRouteCost( points, obstacles );
+          if ( ! best || cost < best.cost ) {
+            best = {
+              cost:           cost,
+              start_contact:  start_contact,
+              end_contact:    end_contact,
+              relay_points:   points.slice( 1, points.length - 1 ),
+            };
+          }
+        }
+      }
+    }
+    return best;
+  };
+
+  //--------------------------------------
+  // 経路の点列から、重複した点と直線上の不要な中継点を取り除く
+  //--------------------------------------
+  EditorScreen.prototype._simplifyRoutePoints = function( points ){
+    var result = [];
+    for ( var i=0; i<points.length; i++ ) {
+      var point = { x: Math.round( points[i].x ), y: Math.round( points[i].y ) };
+      var last = result[ result.length - 1 ];
+      if ( last && last.x == point.x && last.y == point.y ) continue;
+      result.push( point );
+    }
+
+    // 前後の点と一直線上にある中継点を取り除く
+    for ( var i=1; i<result.length - 1; i++ ) {
+      var prev = result[ i - 1 ];
+      var current = result[ i ];
+      var next = result[ i + 1 ];
+      if ( ( current.x - prev.x ) * ( next.y - prev.y ) - ( current.y - prev.y ) * ( next.x - prev.x ) == 0 ) {
+        result.splice( i, 1 );
+        i = Math.max( 0, i - 2 );
+      }
+    }
+    return result;
+  };
+
+  //--------------------------------------
+  // 経路の評価値（小さいほど良い）を求める
+  //   図形の上を通る数・長さを最も重視し、次いで経路の長さ、曲がりの数を評価する
+  //--------------------------------------
+  EditorScreen.prototype._evaluateRouteCost = function( points, obstacles ){
+    var isPointInOriginalRect = function( point, rect ){
+      return rect.x <= point.x && point.x <= rect.x + rect.width && rect.y <= point.y && point.y <= rect.y + rect.height;
+    };
+    var hit_count = 0;
+    var overlap_length = 0;
+    var length = 0;
+    for ( var i=0; i<points.length - 1; i++ ) {
+      var start = points[i];
+      var end = points[i + 1];
+      length += Math.sqrt( Math.pow( end.x - start.x, 2 ) + Math.pow( end.y - start.y, 2 ) );
+      for ( var j=0; j<obstacles.length; j++ ) {
+        var overlap = this._getSegmentLengthInRect( start, end, obstacles[j] );
+        // 図形の輪郭上の接点から出る線は、図形の周囲（広げた分）を横切る分を許容する
+        if ( isPointInOriginalRect( start, obstacles[j].original ) || isPointInOriginalRect( end, obstacles[j].original ) ) {
+          overlap -= obstacles[j].allowance;
+        }
+        if ( 0 < overlap ) {
+          hit_count++;
+          overlap_length += overlap;
+        }
+      }
+    }
+    return hit_count * 10000 + overlap_length * 10 + length + ( points.length - 2 ) * 40;
+  };
+
+  //--------------------------------------
+  // 線分のうち矩形の内側にある部分の長さを求める（Liang–Barsky法）
+  //--------------------------------------
+  EditorScreen.prototype._getSegmentLengthInRect = function( start, end, rect ){
+    if ( 0 >= rect.width || 0 >= rect.height ) return 0;
+    var dx = end.x - start.x;
+    var dy = end.y - start.y;
+    var t0 = 0;
+    var t1 = 1;
+    var p = [ -dx, dx, -dy, dy ];
+    var q = [ start.x - rect.x, rect.x + rect.width - start.x, start.y - rect.y, rect.y + rect.height - start.y ];
+    for ( var i=0; i<4; i++ ) {
+      if ( 0 == p[i] ) {
+        if ( 0 > q[i] ) return 0;
+        continue;
+      }
+      var t = q[i] / p[i];
+      if ( 0 > p[i] ) {
+        if ( t > t1 ) return 0;
+        if ( t > t0 ) t0 = t;
+      }
+      else {
+        if ( t < t0 ) return 0;
+        if ( t < t1 ) t1 = t;
+      }
+    }
+    return ( t1 - t0 ) * Math.sqrt( dx * dx + dy * dy );
+  };
+
+  /*------------------------------------------------------------------------------
     PDF
   ------------------------------------------------------------------------------*/
 
@@ -7053,6 +7374,8 @@ function EditorScreen(){
 
     // 選択中のオブジェクト
     this.select_uml_object_ids = [];
+    // 選択した順序（ルートのID。select_uml_object_idsは描画優先順にソートされるため別途記録する）
+    this.select_order_root_ids = [];
 
     // 選択中のツール
     this.select_tool_name = "tool_button_cursor";
@@ -7393,6 +7716,8 @@ toggle_panel
   <button id='filemenu_edit_plain_related_paste'>${ i18n.t( "ui.filemenu_edit_plain_related_paste" ) }</button><br/>
   <button id='filemenu_edit_arrow_related_paste'>${ i18n.t( "ui.filemenu_edit_arrow_related_paste" ) }</button><br/>
   <div style="width:280;  border_width_bottom:1;  border_color:#909090;  margin:8 0 12 0;"></div>
+  <button id='filemenu_edit_connect_relation'>${ i18n.t( "ui.filemenu_edit_connect_relation" ) }</button><br/>
+  <div style="width:280;  border_width_bottom:1;  border_color:#909090;  margin:8 0 12 0;"></div>
   <button id='filemenu_edit_most_background'>${ i18n.t( "ui.filemenu_edit_most_background" ) }</button><br/>
   <button id='filemenu_edit_background'>${ i18n.t( "ui.filemenu_edit_background" ) }</button><br/>
   <button id='filemenu_edit_foreground'>${ i18n.t( "ui.filemenu_edit_foreground" ) }</button><br/>
@@ -7421,6 +7746,8 @@ toggle_panel
   <button id='contextmenu_paste'>${ i18n.t( "ui.contextmenu_paste" ) }</button><br/>
   <button id='contextmenu_plain_related_paste'>${ i18n.t( "ui.contextmenu_plain_related_paste" ) }</button><br/>
   <button id='contextmenu_arrow_related_paste'>${ i18n.t( "ui.contextmenu_arrow_related_paste" ) }</button><br/>
+  <div style="width:187;  border_width_bottom:1;  border_color:#909090;  margin:8 0 12 0;"></div>
+  <button id='contextmenu_connect_relation'>${ i18n.t( "ui.contextmenu_connect_relation" ) }</button><br/>
   <div style="width:187;  border_width_bottom:1;  border_color:#909090;  margin:8 0 12 0;"></div>
   <button id='contextmenu_most_background'>${ i18n.t( "ui.contextmenu_most_background" ) }</button><br/>
   <button id='contextmenu_background'>${ i18n.t( "ui.contextmenu_background" ) }</button><br/>
@@ -7838,6 +8165,12 @@ toggle_panel
         case "filemenu_edit_arrow_related_paste":
         case "contextmenu_arrow_related_paste":
           this._relatedPasteAsType( 2, "arrow" );
+          break;
+
+        // 選択中の図形を関係線で関連付け（最初に選択した図形と、それ以降の図形を接続）
+        case "filemenu_edit_connect_relation":
+        case "contextmenu_connect_relation":
+          this._connectSelectedUmlObjectsByRelation();
           break;
 
         // 最背面に表示
