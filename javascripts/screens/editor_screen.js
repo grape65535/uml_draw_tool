@@ -6346,6 +6346,139 @@ function EditorScreen(){
   };
 
   //--------------------------------------
+  // 選択中の関係線、または選択中の図形同士の間を接続する関係線について、
+  // 図形の上に重ならない様に接続位置・分割点の数と位置を最適化する（経路探索は関連付けと同じ）
+  //--------------------------------------
+  EditorScreen.prototype._optimizeSelectedRelations = function(){
+    // 選択中のものを関係線と図形（グループは末端まで展開）に分ける
+    var target_relations = [];
+    var selected_shape_ids = {};
+    var selected_uml_objects = this._selectedDescendantUmlObjectsWithRelation();
+    for ( var i=0; i<selected_uml_objects.length; i++ ) {
+      var uml_object = selected_uml_objects[i];
+      if ( "relation" == uml_object.type ) {
+        if ( ! isIncludeArray( target_relations, uml_object ) ) target_relations.push( uml_object );
+      }
+      else {
+        selected_shape_ids[ uml_object.id ] = true;
+      }
+    }
+
+    // 始点・終点が共に選択中の図形に接続している関係線を対象に加える
+    var all_relations = this._collectRelationUmlObjects();
+    for ( var i=0; i<all_relations.length; i++ ) {
+      var relation_uml_object = all_relations[i];
+      var start_line = relation_uml_object.inner_lines[0];
+      var end_line   = relation_uml_object.inner_lines[ relation_uml_object.inner_lines.length - 1 ];
+      if ( ! start_line.relation || ! end_line.relation ) continue;
+      if ( ! selected_shape_ids[ start_line.relation.id ] || ! selected_shape_ids[ end_line.relation.id ] ) continue;
+      if ( ! isIncludeArray( target_relations, relation_uml_object ) ) target_relations.push( relation_uml_object );
+    }
+    if ( 0 == target_relations.length ) return true;
+
+    // 経路の障害物となる図形（グループは末端まで展開）
+    var obstacle_uml_objects = this._collectRouteObstacleUmlObjects();
+
+    var is_optimized = false;
+    for ( var i=0; i<target_relations.length; i++ ) {
+      if ( this._optimizeRelationRoute( target_relations[i], obstacle_uml_objects ) ) is_optimized = true;
+    }
+    if ( ! is_optimized ) return true;
+
+    // 中継点が作り直されたので操作用のトグルを作り直す
+    this._generateDraggableToggles();
+    // 紙サイズの修正
+    this._refreshPaperSize();
+    // データの記録
+    this.data_manager.setData( this.save_data );
+    // 再描画
+    this.screen_manager.requestDraw( this );
+    return true;
+  };
+
+  //--------------------------------------
+  // 選択済みのUMLオブジェクトをグループ末端まで再帰的に取得する（グループ内の関係線も含む）
+  //--------------------------------------
+  EditorScreen.prototype._selectedDescendantUmlObjectsWithRelation = function(){
+    var collect = function( uml_object, result ){
+      if ( ! uml_object ) return;
+      if ( "group" != uml_object.type ) {
+        result.push( uml_object );
+        return;
+      }
+      for ( var key in uml_object.children ) collect( uml_object.children[ key ], result );
+    };
+    var result = [];
+    for ( var i=0; i<this.select_uml_object_ids.length; i++ ) {
+      collect( this._findUmlObjectByKey( this.select_uml_object_ids[i] ), result );
+    }
+    return result;
+  };
+
+  //--------------------------------------
+  // 全ての関係線（グループ内を含む）を取得する
+  //--------------------------------------
+  EditorScreen.prototype._collectRelationUmlObjects = function( parent ){
+    var uml_objects = [];
+    var children = parent ? parent.children : this.save_data.objects;
+    for ( var key in children ) {
+      var uml_object = children[ key ];
+      if ( "relation" == uml_object.type ) {
+        uml_objects.push( uml_object );
+      }
+      else if ( "group" == uml_object.type ) {
+        uml_objects.push( ...this._collectRelationUmlObjects( uml_object ) );
+      }
+    }
+    return uml_objects;
+  };
+
+  //--------------------------------------
+  // 指定の関係線の接続位置・中継点を、図形の上を通らない経路に作り直す
+  //   始点・終点の接続先の図形（及び始点・終点の向き）はそのまま維持する
+  //   始点・終点のいずれかが図形に接続していない場合は何もしない
+  //--------------------------------------
+  EditorScreen.prototype._optimizeRelationRoute = function( relation_uml_object, obstacle_uml_objects ){
+    var start_line = relation_uml_object.inner_lines[0];
+    var end_line   = relation_uml_object.inner_lines[ relation_uml_object.inner_lines.length - 1 ];
+    if ( ! start_line.relation || ! end_line.relation ) return false;
+
+    var start_uml_object = this._findUmlObjectById( start_line.relation.id );
+    var end_uml_object   = this._findUmlObjectById( end_line.relation.id );
+    if ( ! start_uml_object || ! end_uml_object || start_uml_object === end_uml_object ) return false;
+
+    var route = this._findRelationRoute( start_uml_object, end_uml_object, obstacle_uml_objects );
+    if ( ! route ) return false;
+
+    // 始点・終点の内部線は流用し、中継点を作り直す
+    var inner_lines = [ start_line ];
+    for ( var i=0; i<route.relay_points.length; i++ ) {
+      inner_lines.push( { index:0, type:"inner-line-relay", x:route.relay_points[i].x, y:route.relay_points[i].y, relation:null } );
+    }
+    inner_lines.push( end_line );
+    for ( var i=0; i<inner_lines.length; i++ ) inner_lines[i].index = i;
+    relation_uml_object.inner_lines = inner_lines;
+
+    // 新しい接続位置でリレーションし直す
+    this._linkRelation( relation_uml_object, start_line, route.start_contact );
+    this._linkRelation( relation_uml_object, end_line,   route.end_contact );
+
+    // 内部線からUMLオブジェクト矩形を正規化する
+    this._updateRelationInnerLineUmlObject( relation_uml_object, start_line, route.start_contact.owner );
+    this._updateRelationInnerLineUmlObject( relation_uml_object, end_line,   route.end_contact.owner );
+
+    // 関係線の終端矩形を更新
+    relation_uml_object.inner_shapes = this._refreshInnerShape( relation_uml_object, relation_uml_object.type );
+
+    // 自身の親がグループならば、親の矩形を修正する
+    if ( relation_uml_object.parent_id ) {
+      var parent = this._findUmlObjectById( relation_uml_object.parent_id );
+      if ( parent && "group" == parent.type ) this._updateGroupedUmlObjectRect( parent, true );
+    }
+    return true;
+  };
+
+  //--------------------------------------
   // 関係線の経路の障害物となる図形（関係線以外の末端オブジェクト）を全て取得する
   //   parentを指定した場合はそのグループ内の末端オブジェクトを取得する
   //--------------------------------------
@@ -7717,6 +7850,7 @@ toggle_panel
   <button id='filemenu_edit_arrow_related_paste'>${ i18n.t( "ui.filemenu_edit_arrow_related_paste" ) }</button><br/>
   <div style="width:280;  border_width_bottom:1;  border_color:#909090;  margin:8 0 12 0;"></div>
   <button id='filemenu_edit_connect_relation'>${ i18n.t( "ui.filemenu_edit_connect_relation" ) }</button><br/>
+  <button id='filemenu_edit_optimize_relation'>${ i18n.t( "ui.filemenu_edit_optimize_relation" ) }</button><br/>
   <div style="width:280;  border_width_bottom:1;  border_color:#909090;  margin:8 0 12 0;"></div>
   <button id='filemenu_edit_most_background'>${ i18n.t( "ui.filemenu_edit_most_background" ) }</button><br/>
   <button id='filemenu_edit_background'>${ i18n.t( "ui.filemenu_edit_background" ) }</button><br/>
@@ -7748,6 +7882,7 @@ toggle_panel
   <button id='contextmenu_arrow_related_paste'>${ i18n.t( "ui.contextmenu_arrow_related_paste" ) }</button><br/>
   <div style="width:187;  border_width_bottom:1;  border_color:#909090;  margin:8 0 12 0;"></div>
   <button id='contextmenu_connect_relation'>${ i18n.t( "ui.contextmenu_connect_relation" ) }</button><br/>
+  <button id='contextmenu_optimize_relation'>${ i18n.t( "ui.contextmenu_optimize_relation" ) }</button><br/>
   <div style="width:187;  border_width_bottom:1;  border_color:#909090;  margin:8 0 12 0;"></div>
   <button id='contextmenu_most_background'>${ i18n.t( "ui.contextmenu_most_background" ) }</button><br/>
   <button id='contextmenu_background'>${ i18n.t( "ui.contextmenu_background" ) }</button><br/>
@@ -8171,6 +8306,12 @@ toggle_panel
         case "filemenu_edit_connect_relation":
         case "contextmenu_connect_relation":
           this._connectSelectedUmlObjectsByRelation();
+          break;
+
+        // 選択中の関係線、または選択中の図形同士を接続する関係線の経路を最適化
+        case "filemenu_edit_optimize_relation":
+        case "contextmenu_optimize_relation":
+          this._optimizeSelectedRelations();
           break;
 
         // 最背面に表示
