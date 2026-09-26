@@ -1,0 +1,377 @@
+// for SVG
+//   PDF出力（draw_pdf_functions.js）と同じ呼び出し方でSVG文字列を組み立てる
+//   座標系はCanvasと同じ（左上原点、Y軸は下向き）
+
+// 文字のベースライン位置（フォントサイズに対する上端からの比率）
+//   Canvasは textBaseline = "top" で描画しているため、SVGではベースラインをずらして上端を揃える
+var SVG_TEXT_ASCENT_RATE = 0.88;
+
+// SVGに埋め込むフォントのfont-family名
+var SVG_EMBED_FONT_NAME = "UmlDrawToolEmbedFont";
+
+// SVGで利用するフォント（埋め込みフォントが使えない閲覧環境では、環境にあるフォントへフォールバックする）
+var SVG_FONT_FAMILY = `'${ SVG_EMBED_FONT_NAME }', ipag, 'IPAGothic', 'IPAゴシック', 'Hiragino Kaku Gothic ProN', 'Yu Gothic', Meiryo, sans-serif`;
+
+// 保存データ（JSON）を埋め込む<metadata>要素のid
+var SVG_EMBED_JSON_METADATA_ID = "uml_draw_tool_json";
+
+// 埋め込み用フォントの読込みキャッシュ（URL → ArrayBuffer）
+var _svg_font_buffer_cache = {};
+
+//--------------------------------------
+// SVGの初期化
+//--------------------------------------
+function initializeSvgContext( width, height, background_color ){
+  var context = {
+    width:      width || 1200,
+    height:     height || 848,
+    elements:   [],
+    defs:       [],
+    clip_count: 0,
+    font_buffer: null,
+    used_text:  [],
+    metadata:   null,
+    params:     {
+      opacity:  1.0,
+      line:     {
+        border_width: 1,
+        dash_array: [],
+      }
+    }
+  };
+  // 背景
+  if ( background_color ) {
+    context.elements.push( `<rect x="0" y="0" width="${ context.width }" height="${ context.height }" fill="${ background_color }"/>` );
+  }
+  return context;
+}
+
+//--------------------------------------
+// 埋め込み用フォント（TTF）を読込む
+//   読込んだフォントはキャッシュし、2回目以降は通信しない。取得できなかった場合はnullを返す
+//--------------------------------------
+function loadSvgFont( font_url, callback ){
+  if ( _svg_font_buffer_cache[ font_url ] ) {
+    callback( _svg_font_buffer_cache[ font_url ] );
+    return;
+  }
+  _getAjaxFileAsArrayBuffer( null, font_url, function( font_buffer ){
+    if ( font_buffer ) _svg_font_buffer_cache[ font_url ] = font_buffer;
+    callback( font_buffer );
+  } );
+}
+
+//--------------------------------------
+// 埋め込むフォントを設定する
+//   SVG生成時に、描画した文字だけを抜き出したサブセットをbase64化して<style>の@font-faceに埋め込む
+//--------------------------------------
+function setSvgEmbedFont( context, font_buffer ){
+  context.font_buffer = font_buffer || null;
+}
+
+//--------------------------------------
+// <metadata>に埋め込む文字列を設定する
+//   id   : <metadata>要素のid（取り出す時に指定する）
+//   text : 埋め込む文字列（XMLの特殊文字はエスケープして埋め込む）
+//--------------------------------------
+function setSvgMetadata( context, id, text ){
+  context.metadata = { id: id, text: text };
+}
+
+//--------------------------------------
+// SVG文字列から、指定idの<metadata>に埋め込まれた文字列を取り出す（見つからない時はnull）
+//--------------------------------------
+function extractSvgMetadata( svg_text, id ){
+  if ( "string" != typeof svg_text || 0 == svg_text.length ) return null;
+
+  var svg_document = ( new DOMParser() ).parseFromString( svg_text, "image/svg+xml" );
+  if ( 0 < svg_document.getElementsByTagName( "parsererror" ).length ) return null;
+
+  var metadata_elements = svg_document.getElementsByTagName( "metadata" );
+  for ( var i=0; i<metadata_elements.length; i++ ) {
+    if ( id == metadata_elements[i].getAttribute( "id" ) ) return metadata_elements[i].textContent;
+  }
+  return null;
+}
+
+//--------------------------------------
+// SVGを生成（文字列で取得）
+//--------------------------------------
+function saveSvgAsString( context ){
+  var font_face = _createSvgFontFace( context );
+
+  var svg = [];
+  svg.push( '<?xml version="1.0" encoding="UTF-8"?>' );
+  svg.push( `<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" version="1.1" width="${ context.width }" height="${ context.height }" viewBox="0 0 ${ context.width } ${ context.height }">` );
+  if ( context.metadata ) {
+    // 要素の内容なので、引用符はエスケープせずにサイズを抑える
+    var metadata_text = context.metadata.text.replace( /&/g, "&amp;" ).replace( /</g, "&lt;" ).replace( />/g, "&gt;" );
+    svg.push( `<metadata id="${ _escapeSvgText( context.metadata.id ) }">${ metadata_text }</metadata>` );
+  }
+  if ( 0 < context.defs.length || font_face ) {
+    svg.push( "<defs>" );
+    if ( font_face ) svg.push( `<style type="text/css">${ font_face }</style>` );
+    svg.push( context.defs.join("\n") );
+    svg.push( "</defs>" );
+  }
+  svg.push( context.elements.join("\n") );
+  svg.push( "</svg>" );
+  return svg.join("\n");
+}
+
+//--------------------------------------
+// SVGを生成（Blobで取得）
+//--------------------------------------
+function saveSvgAsBlob( context ){
+  return new Blob( [ saveSvgAsString( context ) ], { type: "image/svg+xml" } );
+}
+
+//--------------------------------------
+// SVGのクリッピング処理
+//--------------------------------------
+function clipSvgRect( context, x, y, width, height, draw_func ){
+  var clip_id = `clip${ context.clip_count++ }`;
+  context.defs.push( `<clipPath id="${ clip_id }"><rect x="${ x }" y="${ y }" width="${ Math.max( 0, width ) }" height="${ Math.max( 0, height ) }"/></clipPath>` );
+
+  // クリップ内の描画要素を集めるためにコンテキストを差し替える
+  var parent_elements = context.elements;
+  context.elements = [];
+  draw_func( context );
+  var clipped_elements = context.elements;
+  context.elements = parent_elements;
+
+  context.elements.push( `<g clip-path="url(#${ clip_id })">` );
+  context.elements.push( ...clipped_elements );
+  context.elements.push( "</g>" );
+}
+
+//--------------------------------------
+// SVGの色情報の取得（r, g, b は 0〜1）
+//--------------------------------------
+function getSvgColor( context, r, g, b ){
+  return `rgb(${ Math.round( r * 255 ) },${ Math.round( g * 255 ) },${ Math.round( b * 255 ) })`;
+}
+
+//--------------------------------------
+// 透明度を設定（0〜1）
+//--------------------------------------
+function setSvgAlpha( context, alpha ){
+  context.params.opacity = alpha;
+}
+
+//--------------------------------------
+// 線の太さを設定する
+//--------------------------------------
+function setSvgLineWidth( context, border_width ){
+  context.params.line.border_width = border_width;
+}
+
+//--------------------------------------
+// 線の描画方法を指定する
+//   [] : 空配列 = 実線（デフォルト）
+//   [ number1, number2 ] = number1 : 実線の長さ, number2 : 空白の長さ
+//--------------------------------------
+function setSvgLineDash( context, array ){
+  context.params.line.dash_array = array;
+}
+
+//--------------------------------------
+// 線分描画
+//--------------------------------------
+function drawSvgLine( context, x1, y1, x2, y2, color ){
+  context.elements.push( `<line x1="${ x1 }" y1="${ y1 }" x2="${ x2 }" y2="${ y2 }"${ _getSvgStrokeAttributes( context, color ) }/>` );
+}
+
+//--------------------------------------
+// 複数の線を描画する
+//   points : [ {x:0,y:0}, ... ]
+//--------------------------------------
+function drawSvgLines( context, points, color ){
+  if ( 0 == points.length ) return;
+
+  var path = [];
+  for ( var i=0, length=points.length; i<length; i=(i+1)|0 ) {
+    path.push( `${ 0 == i ? "M" : "L" } ${ points[i].x },${ points[i].y }` );
+  }
+  context.elements.push( `<path d="${ path.join(" ") }" fill="none"${ _getSvgStrokeAttributes( context, color ) }/>` );
+}
+
+//--------------------------------------
+// ペジェ曲線を描画する
+//   points : [ {x:0,y:0}, ... ]
+//--------------------------------------
+function drawSvgBezier( context, points, color, is_horizontal ){
+  if ( 0 == points.length ) return;
+
+  var path = [ `M ${ points[0].x },${ points[0].y }` ];
+  for ( var i=1, length=points.length; i<length; i=(i+1)|0 ) {
+    var cx, cy;
+    if ( is_horizontal ) {
+      cx = points[i].x;
+      cy = points[i-1].y;
+      is_horizontal = false;
+    }
+    else {
+      cx = points[i-1].x;
+      cy = points[i].y;
+      is_horizontal = true;
+    }
+    path.push( `Q ${ cx },${ cy } ${ points[i].x },${ points[i].y }` );
+  }
+  context.elements.push( `<path d="${ path.join(" ") }" fill="none"${ _getSvgStrokeAttributes( context, color ) }/>` );
+}
+
+//--------------------------------------
+// 矩形描画
+//--------------------------------------
+function drawSvgRect( context, x, y, width, height, color, is_fill_rect ){
+  context.elements.push( `<rect x="${ x }" y="${ y }" width="${ Math.max( 0, width ) }" height="${ Math.max( 0, height ) }"${ _getSvgShapeAttributes( context, color, is_fill_rect ) }/>` );
+}
+
+//--------------------------------------
+// 三角形の描画
+//--------------------------------------
+function drawSvgTriangle( context, x1, y1, x2, y2, x3, y3, color, is_fill_rect ){
+  var polygon = [
+    {x: x1, y: y1},
+    {x: x2, y: y2},
+    {x: x3, y: y3},
+  ]
+  drawSvgPolygon( context, polygon, color, is_fill_rect );
+}
+
+//--------------------------------------
+// 多角形描画
+//   polygon : [ {x:0,y:0}, ... ]
+//--------------------------------------
+function drawSvgPolygon( context, polygon, color, is_fill_rect ){
+  if ( 2 >= polygon.length ) return;
+
+  var points = [];
+  for ( var i=0, length=polygon.length; i<length; i=(i+1)|0 ) {
+    points.push( `${ polygon[i].x },${ polygon[i].y }` );
+  }
+  context.elements.push( `<polygon points="${ points.join(" ") }"${ _getSvgShapeAttributes( context, color, is_fill_rect ) }/>` );
+}
+
+//--------------------------------------
+// 円描画
+//--------------------------------------
+function drawSvgCircle( context, x, y, radius, color, is_fill_rect ){
+  context.elements.push( `<circle cx="${ x }" cy="${ y }" r="${ Math.abs( radius ) }"${ _getSvgShapeAttributes( context, color, is_fill_rect ) }/>` );
+}
+
+//--------------------------------------
+// 楕円描画（radius_x == radius_y なら真円）
+//--------------------------------------
+function drawSvgEllipse( context, x, y, radius_x, radius_y, color, is_fill_rect ){
+  context.elements.push( `<ellipse cx="${ x }" cy="${ y }" rx="${ Math.abs( radius_x ) }" ry="${ Math.abs( radius_y ) }"${ _getSvgShapeAttributes( context, color, is_fill_rect ) }/>` );
+}
+
+//--------------------------------------
+// 文字列を描画（x, y は文字の左上）
+//--------------------------------------
+function drawSvgText( context, text, x, y, color, font_size ){
+  if ( ! text || "string" != typeof text || 0 == text.length ) return;
+
+  context.used_text.push( text );
+  var baseline_y = y + Math.round( font_size * SVG_TEXT_ASCENT_RATE );
+  context.elements.push( `<text x="${ x }" y="${ baseline_y }"${ _getSvgTextAttributes( context, color, font_size ) }>${ _escapeSvgText( text ) }</text>` );
+}
+
+//--------------------------------------
+// 文字列を縦に描画（下から上へ。x, y は文字列の左上）
+//--------------------------------------
+function drawSvgVerticalText( context, text, x, y, color, font_size ){
+  if ( ! text || "string" != typeof text || 0 == text.length ) return;
+
+  context.used_text.push( text );
+  var text_width = getTextWidth( text, font_size );
+  var baseline_x = x + Math.round( font_size * SVG_TEXT_ASCENT_RATE );
+  context.elements.push( `<text transform="translate(${ baseline_x },${ y + text_width }) rotate(-90)"${ _getSvgTextAttributes( context, color, font_size ) }>${ _escapeSvgText( text ) }</text>` );
+}
+
+//--------------------------------------
+// data-url形式の画像を指定サイズで描画
+//--------------------------------------
+function drawSvgImageDataUrl( context, data_url, x, y, width, height ){
+  if ( "string" != typeof data_url || ! data_url.match( /^data:image\/[0-9a-z.+-]+[;,]/i ) ) return;
+
+  var href = _escapeSvgText( data_url );
+  var opacity = ( 1 > context.params.opacity ? ` opacity="${ context.params.opacity }"` : "" );
+  context.elements.push( `<image x="${ x }" y="${ y }" width="${ width }" height="${ height }" preserveAspectRatio="none" href="${ href }" xlink:href="${ href }"${ opacity }/>` );
+}
+
+/*------------------------------------------------------------------------------
+  Private functions
+------------------------------------------------------------------------------*/
+
+//--------------------------------------
+// 描画した文字だけを含むサブセットフォントの@font-face定義を生成する（埋め込めない時はnull）
+//--------------------------------------
+function _createSvgFontFace( context ){
+  if ( ! context.font_buffer || 0 == context.used_text.length ) return null;
+
+  var subset = null;
+  try {
+    subset = createTtfSubset( context.font_buffer, context.used_text.join("") );
+  }
+  catch ( e ) {
+    console.log( `Cannot create font subset. : ${ e }` );
+  }
+  if ( ! subset ) return null;
+
+  return `@font-face{font-family:'${ SVG_EMBED_FONT_NAME }';src:url(data:font/ttf;base64,${ uint8ArrayToBase64( subset ) }) format('truetype');}`;
+}
+
+//--------------------------------------
+// 線の属性文字列を取得する
+//--------------------------------------
+function _getSvgStrokeAttributes( context, color ){
+  var attributes = ` stroke="${ color }" stroke-width="${ context.params.line.border_width }"`;
+  if ( context.params.line.dash_array && 0 < context.params.line.dash_array.length ) {
+    attributes += ` stroke-dasharray="${ context.params.line.dash_array.join(" ") }"`;
+  }
+  if ( 1 > context.params.opacity ) {
+    attributes += ` stroke-opacity="${ context.params.opacity }"`;
+  }
+  return attributes;
+}
+
+//--------------------------------------
+// 図形の属性文字列を取得する（塗りつぶし or 枠線）
+//--------------------------------------
+function _getSvgShapeAttributes( context, color, is_fill_rect ){
+  if ( is_fill_rect ) {
+    var attributes = ` fill="${ color }" stroke="none"`;
+    if ( 1 > context.params.opacity ) {
+      attributes += ` fill-opacity="${ context.params.opacity }"`;
+    }
+    return attributes;
+  }
+  return ` fill="none"${ _getSvgStrokeAttributes( context, color ) }`;
+}
+
+//--------------------------------------
+// 文字の属性文字列を取得する
+//--------------------------------------
+function _getSvgTextAttributes( context, color, font_size ){
+  var attributes = ` font-family="${ SVG_FONT_FAMILY }" font-size="${ font_size }" fill="${ color }" xml:space="preserve" style="white-space:pre"`;
+  if ( 1 > context.params.opacity ) {
+    attributes += ` fill-opacity="${ context.params.opacity }"`;
+  }
+  return attributes;
+}
+
+//--------------------------------------
+// XMLの特殊文字をエスケープする（XMLで利用できない制御文字は除去する）
+//--------------------------------------
+function _escapeSvgText( text ){
+  return text
+    .replace( /[\u0000-\u0008\u000B\u000C\u000E-\u001F]/g, "" )
+    .replace( /&/g, "&amp;" )
+    .replace( /</g, "&lt;" )
+    .replace( />/g, "&gt;" )
+    .replace( /"/g, "&quot;" )
+    .replace( /'/g, "&apos;" );
+}

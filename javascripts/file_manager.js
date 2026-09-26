@@ -20,7 +20,11 @@ function FileManager(){
     event.stopPropagation();
 
     var files = event.originalEvent.dataTransfer.files;
-    if ( files[0].type.match(/^image\//) ) {
+    // SVGはテキストとして開く（埋め込みデータの有無はリスナー側で判定する）
+    if ( this.listener.onOpenFileAsSvgText && ( "image/svg+xml" == files[0].type || files[0].name.match(/\.svg$/i) ) ) {
+      this.openFileAsText( files[0], this.listener.onOpenFileAsSvgText.bind(this.listener) );
+    }
+    else if ( files[0].type.match(/^image\//) ) {
       this.openFileAsDataURL( files[0], this.listener.onOpenFileAsDataURL.bind(this.listener) );
     }
     else if ( files[0].type.match(/(^text\/|\/json$)/) ) {
@@ -155,6 +159,7 @@ FileManager();
 function FileManagerListenerInterface(){
   FileManagerListenerInterface.prototype.onOpenFileAsText = function( file, text ){}; // テキストファイル
   FileManagerListenerInterface.prototype.onOpenFileAsDataURL = function( file, data_url ){}; // 画像のバイナリファイル（ドロップ・ペースト共通）
+  FileManagerListenerInterface.prototype.onOpenFileAsSvgText = function( file, svg_text ){}; // SVGファイル（ドロップ）
   FileManagerListenerInterface.prototype.onOpenFileAsBuffer = function( file, buffer ){}; // 画像以外のバイナリファイル
   FileManagerListenerInterface.prototype.onPasteWithoutImage = function(){}; // 画像以外のペースト操作
 }
