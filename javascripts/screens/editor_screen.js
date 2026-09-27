@@ -724,6 +724,54 @@ function EditorScreen(){
   };
 
   //--------------------------------------
+  // 輪郭上の「整列点」一覧を取得する（接続時の吸着候補）
+  //   指定座標を通る垂直線（x = align_x）・水平線（y = align_y）と輪郭との交点。
+  //   関連線の隣の点（分割点、分割点が無ければ反対側の始点・終点）と同じ水平・垂直位置に接続させるために使う。
+  //   ※垂直線に平行な辺（垂直な辺）・水平線に平行な辺（水平な辺）とは交点を求めない
+  //--------------------------------------
+  EditorScreen.prototype._getUmlObjectOutlineAlignedPoints = function( uml_object, align_x, align_y ){
+    var primitives = this._getUmlObjectOutlinePrimitives( uml_object );
+    var aligned_points = [];
+    for ( var i=0; i<primitives.length; i++ ) {
+      var primitive = primitives[i];
+      switch ( primitive.kind ) {
+      case "circle":
+      case "ellipse":
+        var rx = ( "circle" == primitive.kind ? primitive.radius : primitive.radius_x );
+        var ry = ( "circle" == primitive.kind ? primitive.radius : primitive.radius_y );
+        // 垂直線との交点（上下2点）
+        if ( 0 < rx && Math.abs( align_x - primitive.cx ) <= rx ) {
+          var offset_y = ry * Math.sqrt( Math.max( 0, 1 - Math.pow( ( align_x - primitive.cx ) / rx, 2 ) ) );
+          aligned_points.push( { x: align_x, y: primitive.cy - offset_y } );
+          aligned_points.push( { x: align_x, y: primitive.cy + offset_y } );
+        }
+        // 水平線との交点（左右2点）
+        if ( 0 < ry && Math.abs( align_y - primitive.cy ) <= ry ) {
+          var offset_x = rx * Math.sqrt( Math.max( 0, 1 - Math.pow( ( align_y - primitive.cy ) / ry, 2 ) ) );
+          aligned_points.push( { x: primitive.cx - offset_x, y: align_y } );
+          aligned_points.push( { x: primitive.cx + offset_x, y: align_y } );
+        }
+        break;
+      case "polygon":
+      case "line":
+      case "edge":
+        var sx = primitive.start.x, sy = primitive.start.y;
+        var ex = primitive.end.x,   ey = primitive.end.y;
+        // 垂直線との交点
+        if ( sx != ex && Math.min( sx, ex ) <= align_x && align_x <= Math.max( sx, ex ) ) {
+          aligned_points.push( { x: align_x, y: sy + ( ey - sy ) * ( align_x - sx ) / ( ex - sx ) } );
+        }
+        // 水平線との交点
+        if ( sy != ey && Math.min( sy, ey ) <= align_y && align_y <= Math.max( sy, ey ) ) {
+          aligned_points.push( { x: sx + ( ex - sx ) * ( align_y - sy ) / ( ey - sy ), y: align_y } );
+        }
+        break;
+      }
+    }
+    return aligned_points;
+  };
+
+  //--------------------------------------
   // 指定UMLオブジェクトの指定方位の輪郭接点情報を取得する
   //   direction
   //      上を0として、時計回りに右を1、下を2、左を3
@@ -2130,8 +2178,14 @@ function EditorScreen(){
         var contact = this._findNearUmlObjectByPoint( uml_object, x, y );
         // 接続先がある時
         if ( contact ) {
-          // 輪郭上の特徴点（円の極点・多角形の頂点や辺中点・矩形の辺中点など）の近傍なら特徴点へ吸着する
+          // 輪郭上の特徴点（円の極点・多角形の頂点や辺中点・矩形の辺中点など）や整列点の近傍なら、その点へ吸着する
           var feature_points = this._getUmlObjectOutlineFeaturePoints( contact.owner );
+          // 隣の点（分割点、分割点が無ければ反対側の始点・終点）と同じ水平・垂直位置になる輪郭上の点も吸着候補にする
+          var inner_line_index = uml_object.inner_lines.indexOf( inner_shape );
+          var neighbor_inner_line = ( 0 > inner_line_index ) ? null : uml_object.inner_lines[ "inner-line-start" == type ? inner_line_index + 1 : inner_line_index - 1 ];
+          if ( neighbor_inner_line ) {
+            feature_points = feature_points.concat( this._getUmlObjectOutlineAlignedPoints( contact.owner, neighbor_inner_line.x, neighbor_inner_line.y ) );
+          }
           var nearest_feature = null;
           for ( var i=0; i<feature_points.length; i++ ) {
             var feature_distance = Math.sqrt( Math.pow( contact.contact.x - feature_points[i].x, 2 ) + Math.pow( contact.contact.y - feature_points[i].y, 2 ) );
@@ -7878,7 +7932,7 @@ function EditorScreen(){
 
     // アプリケーション名
     this.application_name = "uml_draw_tool";
-    this.current_version = "v1.11.1";
+    this.current_version = "v1.11.2";
 
     // 画像管理を生成
     this.image_manager = ( new ImageManager() ).initialize(this);
