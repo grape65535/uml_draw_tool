@@ -4611,7 +4611,11 @@ function EditorScreen(){
     //   図形の配置と同じ履歴に記録するため、選択の切り替え（前の選択のパラメータ反映で履歴に記録される）より前に行う
     if ( is_connect_selected && "relation" != uml_object.type ) {
       var base_uml_object = this._findConnectBaseUmlObjectForPlacing( before_selected_uml_objects, uml_object );
-      if ( base_uml_object ) {
+      // box 同士で垂直方向の区間が重なる場合は、関連付けと同じく重複区間の上端・下端に水平な関連線を接続する
+      if ( this._isVerticallyOverlappingBoxes( base_uml_object, uml_object ) ) {
+        this._connectBoxesBySequenceRelations( base_uml_object, uml_object );
+      }
+      else if ( base_uml_object ) {
         var route = this._findRelationRoute( base_uml_object, uml_object, this._collectRouteObstacleUmlObjects() );
         if ( route ) this._createRelationUmlObjectByRoute( route );
       }
@@ -6850,8 +6854,19 @@ function EditorScreen(){
     var base_uml_object = target_uml_objects[0];
     var is_created = false;
     for ( var i=1; i<target_uml_objects.length; i++ ) {
-      // 既に関連線で接続されているなら、その関連線を最適化する
       var exist_relations = this._findRelationsBetweenUmlObjects( base_uml_object, target_uml_objects[i], all_relations );
+
+      // box 同士で垂直方向の区間が重なる場合は、重複区間の上端・下端に水平な関連線を接続する（シーケンス図用）
+      //   既に関連線で接続されている場合は、作成・最適化とも行わない（水平な関連線を崩さないため）
+      if ( this._isVerticallyOverlappingBoxes( base_uml_object, target_uml_objects[i] ) ) {
+        if ( 0 == exist_relations.length ) {
+          this._connectBoxesBySequenceRelations( base_uml_object, target_uml_objects[i] );
+          is_created = true;
+        }
+        continue;
+      }
+
+      // 既に関連線で接続されているなら、その関連線を最適化する
       if ( 0 < exist_relations.length ) {
         for ( var j=0; j<exist_relations.length; j++ ) {
           if ( this._optimizeRelationRoute( exist_relations[j], obstacle_uml_objects ) ) is_created = true;
@@ -6908,6 +6923,76 @@ function EditorScreen(){
     // 関連線の終端矩形を更新
     relation_uml_object.inner_shapes = this._refreshInnerShape( relation_uml_object, relation_uml_object.type );
     return relation_uml_object;
+  };
+
+  //--------------------------------------
+  // 2つの図形がどちらも box で、X座標を無視した時に垂直方向の区間が重なり合うか？
+  //--------------------------------------
+  EditorScreen.prototype._isVerticallyOverlappingBoxes = function( uml_object_a, uml_object_b ){
+    if ( ! uml_object_a || ! uml_object_b || "box" != uml_object_a.type || "box" != uml_object_b.type ) return false;
+    var top    = Math.max( uml_object_a.y, uml_object_b.y );
+    var bottom = Math.min( uml_object_a.y + uml_object_a.height, uml_object_b.y + uml_object_b.height );
+    return top < bottom;
+  };
+
+  //--------------------------------------
+  // 垂直方向の区間が重なる box 同士を、重複区間の上端・下端の位置で水平な2本の関連線で接続する（シーケンス図用）
+  //   互いに向かい合う辺（左側の box の右辺と、右側の box の左辺）に接続する。
+  //   上端の関連線: 上辺寄りの角（上辺が下にある方の box の角）に繋がる側が終点。上辺が同じ位置なら左側の box が始点。
+  //   下端の関連線: 下辺寄りの角（下辺が上にある方の box の角）に繋がる側が始点。下辺が同じ位置なら右側の box が始点。
+  //--------------------------------------
+  EditorScreen.prototype._connectBoxesBySequenceRelations = function( uml_object_a, uml_object_b ){
+    var top    = Math.max( uml_object_a.y, uml_object_b.y );
+    var bottom = Math.min( uml_object_a.y + uml_object_a.height, uml_object_b.y + uml_object_b.height );
+
+    // 左右の位置関係（中心のX座標で比較する）
+    var is_a_left = ( uml_object_a.x + uml_object_a.width / 2 <= uml_object_b.x + uml_object_b.width / 2 );
+    var left_uml_object  = is_a_left ? uml_object_a : uml_object_b;
+    var right_uml_object = is_a_left ? uml_object_b : uml_object_a;
+
+    var self = this;
+    var createHorizontalRelation = function( start_uml_object, end_uml_object, y ){
+      self._createRelationUmlObjectByRoute( {
+        start_contact:  self._getBoxSideEdgeContact( start_uml_object, ( start_uml_object === left_uml_object ? "right" : "left" ), y ),
+        end_contact:    self._getBoxSideEdgeContact( end_uml_object,   ( end_uml_object   === left_uml_object ? "right" : "left" ), y ),
+        relay_points:   [],
+      } );
+    };
+
+    // 重複区間の上端の関連線
+    if ( uml_object_a.y == uml_object_b.y ) {
+      createHorizontalRelation( left_uml_object, right_uml_object, top );
+    }
+    else {
+      var top_end_uml_object = ( uml_object_a.y > uml_object_b.y ? uml_object_a : uml_object_b );
+      createHorizontalRelation( ( top_end_uml_object === uml_object_a ? uml_object_b : uml_object_a ), top_end_uml_object, top );
+    }
+
+    // 重複区間の下端の関連線
+    var bottom_a = uml_object_a.y + uml_object_a.height;
+    var bottom_b = uml_object_b.y + uml_object_b.height;
+    if ( bottom_a == bottom_b ) {
+      createHorizontalRelation( right_uml_object, left_uml_object, bottom );
+    }
+    else {
+      var bottom_start_uml_object = ( bottom_a < bottom_b ? uml_object_a : uml_object_b );
+      createHorizontalRelation( bottom_start_uml_object, ( bottom_start_uml_object === uml_object_a ? uml_object_b : uml_object_a ), bottom );
+    }
+  };
+
+  //--------------------------------------
+  // box の左辺・右辺上の指定の垂直位置への接点情報を作成する
+  //--------------------------------------
+  EditorScreen.prototype._getBoxSideEdgeContact = function( box_uml_object, edge, y ){
+    return {
+      owner:      box_uml_object,
+      type:       "object_outline",
+      base_type:  edge,
+      distance:   0,
+      contact:    { x: ( "left" == edge ? box_uml_object.x : box_uml_object.x + box_uml_object.width ), y: y },
+      anchor:     { kind: "edge", edge: edge, ratio: ( 0 < box_uml_object.height ? ( y - box_uml_object.y ) / box_uml_object.height : 0 ) },
+      is_inside:  true,
+    };
   };
 
   //--------------------------------------
@@ -8365,7 +8450,7 @@ function EditorScreen(){
 
     // アプリケーション名
     this.application_name = "uml_draw_tool";
-    this.current_version = "v1.11.13";
+    this.current_version = "v1.11.14";
 
     // 画像管理を生成
     this.image_manager = ( new ImageManager() ).initialize(this);
