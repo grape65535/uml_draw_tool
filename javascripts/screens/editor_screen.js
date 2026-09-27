@@ -1950,7 +1950,7 @@ function EditorScreen(){
     // 移動に伴って、リレーション先に影響がある時の座標更新
     this._updateRelationUmlObject( uml_object );
 
-    // box 同士の水平な関連線は、接続点を辺の上端からの距離で保つ（シーケンス図用）
+    // box 同士の水平な関連線は、接続点の垂直位置を保つ（シーケンス図用）
     if ( is_vertical_resize && box_relation_snapshot ) this._applyHorizontalBoxRelationsOnResize( uml_object, box_relation_snapshot );
 
     // 紙サイズの修正
@@ -2019,7 +2019,7 @@ function EditorScreen(){
 
   //--------------------------------------
   // box 同士を水平方向（左右の辺どうし）に接続している関連線の、サイズ変更前の接続状態を控える
-  //   サイズ変更する box（uml_object）側の接続点の辺上端からの距離・辺の長さ、分割点、反対側の接続点の座標を記録する。
+  //   サイズ変更する box（uml_object）側の接続点の座標・辺上端からの距離・辺の長さ、分割点、反対側の接続点の座標を記録する。
   //   box 以外、または対象の関連線が無い場合は null を返す。
   //--------------------------------------
   EditorScreen.prototype._snapshotHorizontalBoxRelations = function( uml_object ){
@@ -2065,7 +2065,7 @@ function EditorScreen(){
 
   //--------------------------------------
   // 垂直方向のサイズ変更後に、box 同士の水平な関連線の接続点を補正する（シーケンス図用）
-  //   ・変更前の接続点が辺の途中なら、辺の上端からの距離を保つ（辺が短くなった場合は辺の端＝下端に留める）
+  //   ・変更前の接続点が辺の途中なら、接続点の絶対座標（垂直位置）を保つ（辺の範囲外になった場合は辺の端に留める）
   //   ・変更前の接続点が辺の端（上端・下端）なら、辺の端に保ったまま、分割点と反対側の接続点も同じ量だけ垂直に移動する
   //     （反対側の接続点は、接続先の辺の端を越えない範囲に留める）
   //--------------------------------------
@@ -2082,8 +2082,8 @@ function EditorScreen(){
         distance = ( 0 >= entry.distance ? 0 : uml_object.height );
       }
       else {
-        // 辺の上端からの距離を保つ（辺が短くなった場合は下端に留める）
-        distance = Math.min( entry.distance, uml_object.height );
+        // 接続点の絶対座標（垂直位置）を保つ（辺の範囲外になった場合は辺の端に留める）
+        distance = Math.max( 0, Math.min( uml_object.height, entry.own_y - uml_object.y ) );
       }
       this._setHorizontalBoxRelationContactY( own_line, uml_object, uml_object.y + distance );
 
@@ -8175,7 +8175,7 @@ function EditorScreen(){
 
     // アプリケーション名
     this.application_name = "uml_draw_tool";
-    this.current_version = "v1.11.7";
+    this.current_version = "v1.11.8";
 
     // 画像管理を生成
     this.image_manager = ( new ImageManager() ).initialize(this);
