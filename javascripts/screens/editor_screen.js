@@ -4216,8 +4216,12 @@ function EditorScreen(){
 
   //--------------------------------------
   // UMLオブジェクトの生成
+  //   is_connect_selected: true の時は、配置前に選択していた図形（最後に選択した図形）から配置した図形へ関連付けする
   //--------------------------------------
-  EditorScreen.prototype._createUmlObject = function( tool_button_name ){
+  EditorScreen.prototype._createUmlObject = function( tool_button_name, is_connect_selected ){
+    // 関連付けする場合は、配置前の選択を選択順で控えておく（配置した図形が選択されるため）
+    var before_selected_uml_objects = ( is_connect_selected ? this._selectedUmlObjectsBySelectOrder() : [] );
+
     // メインコンテンツ領域でクリップ
     var uml_object = this._createInitializedUmlObject( tool_button_name.replace( "tool_button_", "" ) );
 
@@ -4242,6 +4246,17 @@ function EditorScreen(){
     // オブジェクトを登録・選択状態にする
     this.save_data.objects[ uml_object.id ] = uml_object;
     this.save_data.priorities.push( uml_object.id );
+
+    // 配置前に選択していた図形を始点、配置した図形を終点として関連付けする（関連線自体の配置時は行わない）
+    //   図形の配置と同じ履歴に記録するため、選択の切り替え（前の選択のパラメータ反映で履歴に記録される）より前に行う
+    if ( is_connect_selected && "relation" != uml_object.type ) {
+      var base_uml_object = this._findConnectBaseUmlObjectForPlacing( before_selected_uml_objects, uml_object );
+      if ( base_uml_object ) {
+        var route = this._findRelationRoute( base_uml_object, uml_object, this._collectRouteObstacleUmlObjects() );
+        if ( route ) this._createRelationUmlObjectByRoute( route );
+      }
+    }
+
     this._selectUmlObjectByKey( uml_object.id );
 
     // 紙サイズの修正
@@ -6478,30 +6493,7 @@ function EditorScreen(){
       if ( ! route ) continue;
 
       // 関連線を作成
-      var relation_uml_object = this._createInitializedUmlObject( "relation" );
-      var inner_lines = [ { index:0, type:"inner-line-start", x:route.start_contact.contact.x, y:route.start_contact.contact.y, relation:null } ];
-      for ( var j=0; j<route.relay_points.length; j++ ) {
-        inner_lines.push( { index:inner_lines.length, type:"inner-line-relay", x:route.relay_points[j].x, y:route.relay_points[j].y, relation:null } );
-      }
-      inner_lines.push( { index:inner_lines.length, type:"inner-line-end", x:route.end_contact.contact.x, y:route.end_contact.contact.y, relation:null } );
-      relation_uml_object.inner_lines = inner_lines;
-
-      // オブジェクトを登録する
-      this.save_data.objects[ relation_uml_object.id ] = relation_uml_object;
-      this.save_data.priorities.push( relation_uml_object.id );
-
-      // リレーションする
-      var start_line = relation_uml_object.inner_lines[0];
-      var end_line   = relation_uml_object.inner_lines[ relation_uml_object.inner_lines.length - 1 ];
-      this._linkRelation( relation_uml_object, start_line, route.start_contact );
-      this._linkRelation( relation_uml_object, end_line,   route.end_contact );
-
-      // 内部線からUMLオブジェクト矩形を正規化する
-      this._updateRelationInnerLineUmlObject( relation_uml_object, start_line, route.start_contact.owner );
-      this._updateRelationInnerLineUmlObject( relation_uml_object, end_line,   route.end_contact.owner );
-
-      // 関連線の終端矩形を更新
-      relation_uml_object.inner_shapes = this._refreshInnerShape( relation_uml_object, relation_uml_object.type );
+      this._createRelationUmlObjectByRoute( route );
       is_created = true;
     }
     if ( ! is_created ) return true;
@@ -6515,6 +6507,66 @@ function EditorScreen(){
     // 再描画
     this.screen_manager.requestDraw( this );
     return true;
+  };
+
+  //--------------------------------------
+  // 経路（_findRelationRoute の戻り値）から関連線を作成・登録し、始点・終点を接続する
+  //--------------------------------------
+  EditorScreen.prototype._createRelationUmlObjectByRoute = function( route ){
+    var relation_uml_object = this._createInitializedUmlObject( "relation" );
+    var inner_lines = [ { index:0, type:"inner-line-start", x:route.start_contact.contact.x, y:route.start_contact.contact.y, relation:null } ];
+    for ( var j=0; j<route.relay_points.length; j++ ) {
+      inner_lines.push( { index:inner_lines.length, type:"inner-line-relay", x:route.relay_points[j].x, y:route.relay_points[j].y, relation:null } );
+    }
+    inner_lines.push( { index:inner_lines.length, type:"inner-line-end", x:route.end_contact.contact.x, y:route.end_contact.contact.y, relation:null } );
+    relation_uml_object.inner_lines = inner_lines;
+
+    // オブジェクトを登録する
+    this.save_data.objects[ relation_uml_object.id ] = relation_uml_object;
+    this.save_data.priorities.push( relation_uml_object.id );
+
+    // リレーションする
+    var start_line = relation_uml_object.inner_lines[0];
+    var end_line   = relation_uml_object.inner_lines[ relation_uml_object.inner_lines.length - 1 ];
+    this._linkRelation( relation_uml_object, start_line, route.start_contact );
+    this._linkRelation( relation_uml_object, end_line,   route.end_contact );
+
+    // 内部線からUMLオブジェクト矩形を正規化する
+    this._updateRelationInnerLineUmlObject( relation_uml_object, start_line, route.start_contact.owner );
+    this._updateRelationInnerLineUmlObject( relation_uml_object, end_line,   route.end_contact.owner );
+
+    // 関連線の終端矩形を更新
+    relation_uml_object.inner_shapes = this._refreshInnerShape( relation_uml_object, relation_uml_object.type );
+    return relation_uml_object;
+  };
+
+  //--------------------------------------
+  // CTRL押下でツールボタンから図形を配置した時に、配置前に選択していた図形と関連付けする相手の図形を取得する
+  //   選択中の図形（関連線を除く）のうち最後に選択した図形とする。
+  //   それがグループの場合は、グループ内の末端の図形のうち、配置した図形に最も近い図形とする。
+  //--------------------------------------
+  EditorScreen.prototype._findConnectBaseUmlObjectForPlacing = function( selected_uml_objects, placed_uml_object ){
+    var base_uml_object = null;
+    for ( var i=selected_uml_objects.length - 1; i>=0; i-- ) {
+      if ( "relation" == selected_uml_objects[i].type ) continue;
+      base_uml_object = selected_uml_objects[i];
+      break;
+    }
+    if ( ! base_uml_object || "group" != base_uml_object.type ) return base_uml_object;
+
+    // グループ内の末端の図形のうち、配置した図形と中心どうしの距離が最も近いもの
+    var leaves = this._collectRouteObstacleUmlObjects( base_uml_object );
+    var placed_center = { x: placed_uml_object.x + placed_uml_object.width / 2, y: placed_uml_object.y + placed_uml_object.height / 2 };
+    var nearest_uml_object = null;
+    var nearest_distance = null;
+    for ( var i=0; i<leaves.length; i++ ) {
+      var distance = Math.sqrt( Math.pow( leaves[i].x + leaves[i].width / 2 - placed_center.x, 2 ) + Math.pow( leaves[i].y + leaves[i].height / 2 - placed_center.y, 2 ) );
+      if ( null == nearest_distance || distance < nearest_distance ) {
+        nearest_distance = distance;
+        nearest_uml_object = leaves[i];
+      }
+    }
+    return nearest_uml_object;
   };
 
   //--------------------------------------
@@ -7943,7 +7995,7 @@ function EditorScreen(){
 
     // アプリケーション名
     this.application_name = "uml_draw_tool";
-    this.current_version = "v1.11.4";
+    this.current_version = "v1.11.5";
 
     // 画像管理を生成
     this.image_manager = ( new ImageManager() ).initialize(this);
@@ -8707,7 +8759,8 @@ toggle_panel
         case "tool_button_ellipse":
 
           // UIオブジェクトを生成する
-          this._createUmlObject( object.name );
+          //   CTRL（またはCOMMAND）押下時は、選択中の図形（最後に選択した図形）から配置した図形へ関連付けする
+          this._createUmlObject( object.name, ( statuses && ( statuses.isPressKey( KEYCODE_CTRL ) || statuses.isPressKey( KEYCODE_COMMAND ) ) ) );
           break;
         }
       }
