@@ -6778,6 +6778,7 @@ function EditorScreen(){
     // 障害物の矩形を作成する
     //   図形の枠線に沿って線が重ならない様に、少し外側に広げた矩形とする
     //   接続元・接続先を包含する図形（フレーム等）は線が通らざるを得ないので障害物にしない
+    //   接続元・接続先以外の vertical_line・horizontal_line は、常に上に重なっても良いものとして障害物にしない
     var isContainRect = function( outer, inner ){
       return outer.x <= inner.x && outer.y <= inner.y && inner.x + inner.width <= outer.x + outer.width && inner.y + inner.height <= outer.y + outer.height;
     };
@@ -6786,6 +6787,7 @@ function EditorScreen(){
       var obstacle = obstacle_uml_objects[i];
       if ( obstacle !== start_uml_object && obstacle !== end_uml_object ) {
         if ( isContainRect( obstacle, start_uml_object ) || isContainRect( obstacle, end_uml_object ) ) continue;
+        if ( isIncludeArray( [ "vertical_line", "horizontal_line" ], obstacle.type ) ) continue;
       }
       obstacles.push( {
         x: obstacle.x - ROUTE_PADDING,
@@ -6795,12 +6797,12 @@ function EditorScreen(){
         original: { x: obstacle.x, y: obstacle.y, width: obstacle.width, height: obstacle.height },
         allowance: ROUTE_PADDING * 2,
         // シーケンス図用: box同士を水平方向に接続する経路では、上に重なっても良い図形
-        is_passable_on_horizontal_box_route: ( obstacle !== start_uml_object && obstacle !== end_uml_object && isIncludeArray( [ "box", "vertical_line", "horizontal_line" ], obstacle.type ) ),
+        is_passable_on_horizontal_box_route: ( obstacle !== start_uml_object && obstacle !== end_uml_object && "box" == obstacle.type ),
       } );
     }
     // box同士を水平方向（左右の辺どうし）に接続する経路の障害物
     //   シーケンス図で、垂直に並んだ vertical_line（ライフライン）と box（実行仕様）の間を水平に接続できる様に、
-    //   他の box・vertical_line・horizontal_line の上には重なっても良いものとする
+    //   他の box の上にも重なっても良いものとする（vertical_line・horizontal_line は上記のとおり常に障害物にしない）
     var is_box_pair = ( "box" == start_uml_object.type && "box" == end_uml_object.type );
     var horizontal_box_route_obstacles = obstacles.filter( function( obstacle ){ return ! obstacle.is_passable_on_horizontal_box_route; } );
 
@@ -7941,7 +7943,7 @@ function EditorScreen(){
 
     // アプリケーション名
     this.application_name = "uml_draw_tool";
-    this.current_version = "v1.11.3";
+    this.current_version = "v1.11.4";
 
     // 画像管理を生成
     this.image_manager = ( new ImageManager() ).initialize(this);
