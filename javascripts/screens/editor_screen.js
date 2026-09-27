@@ -7244,7 +7244,9 @@ function EditorScreen(){
   //                                       区間外で対向の下辺が主体の区間内なら対向の下辺寄りの角、どちらも区間外なら補正しない
   //     主体の下辺寄り → 対向の上辺寄り: 対向の上辺が主体の区間内なら対向の上辺寄りの角、
   //                                       区間外で主体の下辺が対向の区間内なら主体の下辺寄りの角、どちらも区間外なら補正しない
-  //   既に水平な関連線、角以外に接続されている関連線、2つの box の横位置に重複区間がある関連線は補正しない。
+  //   一方だけが角に接続されている場合は、角側のY座標 → 角ではない側のY座標 → 重複区間中で角に最も近い位置 の順に、
+  //   両方の辺の範囲に収まる位置に揃える。
+  //   既に水平な関連線、両端とも角以外に接続されている関連線、2つの box の横位置に重複区間がある関連線は補正しない。
   //   戻り値: 補正した時 true
   //--------------------------------------
   EditorScreen.prototype._straightenSequenceBoxRelation = function( relation_uml_object, subject_uml_object, target_uml_object ){
@@ -7283,7 +7285,8 @@ function EditorScreen(){
     };
     var subject_corner = getCorner( start_line, subject_uml_object );
     var target_corner  = getCorner( end_line,   target_uml_object );
-    if ( ! subject_corner || ! target_corner ) return false;
+    // 両端とも角以外（辺の途中）に接続されている場合は補正しない
+    if ( ! subject_corner && ! target_corner ) return false;
 
     var subject_top    = subject_uml_object.y;
     var subject_bottom = subject_uml_object.y + subject_uml_object.height;
@@ -7292,7 +7295,28 @@ function EditorScreen(){
     var isInRange = function( y, top, bottom ){ return top <= y && y <= bottom; };
 
     var y = null;
-    if ( "top" == subject_corner && "top" == target_corner ) {
+    // 一方だけが角に接続されている場合
+    //   1. 角に接続されている側のY座標に合わせる（もう一方の辺の範囲内の時）
+    //   2. 1が辺の端を越える時は、角に接続されていない側のY座標に合わせる（角側の辺の範囲内の時）
+    //   3. 2も辺の端を越える時は、重複区間の中で角の接続位置に最も近い位置に合わせる
+    if ( ! subject_corner || ! target_corner ) {
+      var corner_line       = subject_corner ? start_line : end_line;
+      var corner_uml_object = subject_corner ? subject_uml_object : target_uml_object;
+      var other_line        = subject_corner ? end_line : start_line;
+      var other_uml_object  = subject_corner ? target_uml_object : subject_uml_object;
+      if ( isInRange( corner_line.y, other_uml_object.y, other_uml_object.y + other_uml_object.height ) ) {
+        y = corner_line.y;
+      }
+      else if ( isInRange( other_line.y, corner_uml_object.y, corner_uml_object.y + corner_uml_object.height ) ) {
+        y = other_line.y;
+      }
+      else {
+        var overlap_top    = Math.max( subject_top, target_top );
+        var overlap_bottom = Math.min( subject_bottom, target_bottom );
+        y = Math.max( overlap_top, Math.min( overlap_bottom, corner_line.y ) );
+      }
+    }
+    else if ( "top" == subject_corner && "top" == target_corner ) {
       y = Math.max( subject_top, target_top );
     }
     else if ( "bottom" == subject_corner && "bottom" == target_corner ) {
@@ -8546,7 +8570,7 @@ function EditorScreen(){
 
     // アプリケーション名
     this.application_name = "uml_draw_tool";
-    this.current_version = "v1.11.17";
+    this.current_version = "v1.11.18";
 
     // 画像管理を生成
     this.image_manager = ( new ImageManager() ).initialize(this);
