@@ -7244,10 +7244,16 @@ function EditorScreen(){
   //                                       区間外で対向の下辺が主体の区間内なら対向の下辺寄りの角、どちらも区間外なら補正しない
   //     主体の下辺寄り → 対向の上辺寄り: 対向の上辺が主体の区間内なら対向の上辺寄りの角、
   //                                       区間外で主体の下辺が対向の区間内なら主体の下辺寄りの角、どちらも区間外なら補正しない
-  //   既に水平な関連線、角以外に接続されている関連線は補正しない。
+  //   既に水平な関連線、角以外に接続されている関連線、2つの box の横位置に重複区間がある関連線は補正しない。
   //   戻り値: 補正した時 true
   //--------------------------------------
   EditorScreen.prototype._straightenSequenceBoxRelation = function( relation_uml_object, subject_uml_object, target_uml_object ){
+    // 2つの box の横位置に重複区間がある（完全一致・入れ子・部分的な重なり）時は補正しない
+    //   （同じライフライン上に重ねた box 同士を結ぶ、見かけ上の自己参照の関連線を崩さないため）
+    var overlap_left  = Math.max( subject_uml_object.x, target_uml_object.x );
+    var overlap_right = Math.min( subject_uml_object.x + subject_uml_object.width, target_uml_object.x + target_uml_object.width );
+    if ( overlap_left < overlap_right ) return false;
+
     // 上辺・下辺の端（角）への接続は、左辺・右辺の端への接続に付け替えておく
     this._moveBoxCornerRelationsToSideEdge( subject_uml_object );
 
@@ -8540,7 +8546,7 @@ function EditorScreen(){
 
     // アプリケーション名
     this.application_name = "uml_draw_tool";
-    this.current_version = "v1.11.16";
+    this.current_version = "v1.11.17";
 
     // 画像管理を生成
     this.image_manager = ( new ImageManager() ).initialize(this);
