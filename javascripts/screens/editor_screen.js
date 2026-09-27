@@ -1890,8 +1890,14 @@ function EditorScreen(){
 
   //--------------------------------------
   // UMLオブジェクトのサイズ変更
+  //   box_relation_snapshot: サイズ変更前（ドラッグ開始時）の box 同士の水平な関連線の接続状態
+  //     （_snapshotHorizontalBoxRelations の戻り値）。省略時はこの呼び出しの変更前の状態を使う。
   //--------------------------------------
-  EditorScreen.prototype._editUmlObjectSize = function( uml_object, type, x, y ){
+  EditorScreen.prototype._editUmlObjectSize = function( uml_object, type, x, y, box_relation_snapshot ){
+    // 垂直方向のサイズ変更の時は、box 同士の水平な関連線の接続状態を控えておく
+    var is_vertical_resize = isIncludeArray( [ "top-left", "top", "top-right", "bottom-left", "bottom", "bottom-right" ], type );
+    if ( is_vertical_resize && ! box_relation_snapshot ) box_relation_snapshot = this._snapshotHorizontalBoxRelations( uml_object );
+
     // X方向のサイズ変更（left）
     if ( isIncludeArray( [ "top-left", "left", "bottom-left" ], type ) ) {
       var move_amount_x = x - uml_object.x;
@@ -1942,8 +1948,108 @@ function EditorScreen(){
     // 移動に伴って、リレーション先に影響がある時の座標更新
     this._updateRelationUmlObject( uml_object );
 
+    // box 同士の水平な関連線は、接続点を辺の上端からの距離で保つ（シーケンス図用）
+    if ( is_vertical_resize && box_relation_snapshot ) this._applyHorizontalBoxRelationsOnResize( uml_object, box_relation_snapshot );
+
     // 紙サイズの修正
     this._refreshPaperSize();
+  };
+
+  //--------------------------------------
+  // box 同士を水平方向（左右の辺どうし）に接続している関連線の、サイズ変更前の接続状態を控える
+  //   サイズ変更する box（uml_object）側の接続点の辺上端からの距離・辺の長さ、分割点、反対側の接続点の座標を記録する。
+  //   box 以外、または対象の関連線が無い場合は null を返す。
+  //--------------------------------------
+  EditorScreen.prototype._snapshotHorizontalBoxRelations = function( uml_object ){
+    if ( ! uml_object || "box" != uml_object.type || ! uml_object.relation_ids ) return null;
+
+    var isHorizontalEdge = function( relation ){
+      return relation && relation.anchor && "edge" == relation.anchor.kind && isIncludeArray( [ "left", "right" ], relation.anchor.edge );
+    };
+    var entries = [];
+    for ( var i=0; i<uml_object.relation_ids.length; i++ ) {
+      var relation_uml_object = this._findUmlObjectById( uml_object.relation_ids[i] );
+      if ( ! relation_uml_object || "relation" != relation_uml_object.type ) continue;
+      var inner_lines = relation_uml_object.inner_lines;
+      var ends = [ 0, inner_lines.length - 1 ];
+      for ( var j=0; j<ends.length; j++ ) {
+        var own_line = inner_lines[ ends[j] ];
+        var opposite_line = inner_lines[ ends[ 1 - j ] ];
+        if ( ! own_line.relation || own_line.relation.id != uml_object.id || ! isHorizontalEdge( own_line.relation ) ) continue;
+        if ( ! opposite_line.relation || ! isHorizontalEdge( opposite_line.relation ) ) continue;
+        var opposite_uml_object = this._findUmlObjectById( opposite_line.relation.id );
+        if ( ! opposite_uml_object || "box" != opposite_uml_object.type || opposite_uml_object === uml_object ) continue;
+
+        var relay_ys = [];
+        for ( var k=1; k<inner_lines.length - 1; k++ ) relay_ys.push( inner_lines[k].y );
+        entries.push( {
+          relation_uml_object:  relation_uml_object,
+          own_line:             own_line,
+          opposite_line:        opposite_line,
+          opposite_uml_object:  opposite_uml_object,
+          distance:             own_line.y - uml_object.y,   // 辺の上端からの距離
+          height:               uml_object.height,           // 辺の長さ
+          own_y:                own_line.y,
+          opposite_y:           opposite_line.y,
+          relay_ys:             relay_ys,
+        } );
+      }
+    }
+    return ( 0 < entries.length ? entries : null );
+  };
+
+  //--------------------------------------
+  // 垂直方向のサイズ変更後に、box 同士の水平な関連線の接続点を補正する（シーケンス図用）
+  //   ・変更前の接続点が辺の途中なら、辺の上端からの距離を保つ（辺が短くなった場合は辺の端＝下端に留める）
+  //   ・変更前の接続点が辺の端（上端・下端）なら、辺の端に保ったまま、分割点と反対側の接続点も同じ量だけ垂直に移動する
+  //     （反対側の接続点は、接続先の辺の端を越えない範囲に留める）
+  //--------------------------------------
+  EditorScreen.prototype._applyHorizontalBoxRelationsOnResize = function( uml_object, snapshot ){
+    for ( var i=0; i<snapshot.length; i++ ) {
+      var entry = snapshot[i];
+      var own_line = entry.own_line;
+      if ( ! own_line.relation || own_line.relation.id != uml_object.id ) continue;
+
+      var distance = null;
+      var is_edge_end = ( 0 >= entry.distance || entry.height <= entry.distance );
+      if ( is_edge_end ) {
+        // 辺の端を維持する
+        distance = ( 0 >= entry.distance ? 0 : uml_object.height );
+      }
+      else {
+        // 辺の上端からの距離を保つ（辺が短くなった場合は下端に留める）
+        distance = Math.min( entry.distance, uml_object.height );
+      }
+      this._setHorizontalBoxRelationContactY( own_line, uml_object, uml_object.y + distance );
+
+      if ( is_edge_end ) {
+        var move_amount_y = own_line.y - entry.own_y;
+        var inner_lines = entry.relation_uml_object.inner_lines;
+        // 分割点を同じ量だけ垂直に移動する
+        for ( var k=1; k<inner_lines.length - 1 && k-1<entry.relay_ys.length; k++ ) {
+          inner_lines[k].y = entry.relay_ys[ k-1 ] + move_amount_y;
+        }
+        // 反対側の接続点も同じ量だけ垂直に移動する（接続先の辺の端を越えない範囲）
+        var opposite_uml_object = entry.opposite_uml_object;
+        var opposite_y = Math.max( opposite_uml_object.y, Math.min( opposite_uml_object.y + opposite_uml_object.height, entry.opposite_y + move_amount_y ) );
+        if ( entry.opposite_line.relation && entry.opposite_line.relation.id == opposite_uml_object.id ) {
+          this._setHorizontalBoxRelationContactY( entry.opposite_line, opposite_uml_object, opposite_y );
+        }
+      }
+
+      // 内部線からUMLオブジェクト矩形を正規化する
+      this._normalizationUmlObjectSizeByInnerLine( entry.relation_uml_object );
+    }
+  };
+
+  //--------------------------------------
+  // box の左右の辺に接続している関連線の接続点を、指定の垂直位置へ移動する（anchorの比率も更新する）
+  //--------------------------------------
+  EditorScreen.prototype._setHorizontalBoxRelationContactY = function( inner_line, box_uml_object, y ){
+    var anchor = inner_line.relation.anchor;
+    anchor.ratio = ( 0 < box_uml_object.height ? ( y - box_uml_object.y ) / box_uml_object.height : 0 );
+    inner_line.x = ( "left" == anchor.edge ? box_uml_object.x : box_uml_object.x + box_uml_object.width );
+    inner_line.y = y;
   };
 
   //--------------------------------------
@@ -5600,7 +5706,13 @@ function EditorScreen(){
            ( this.draggable_toggles[i].x - 4 <= cursor_position.x && cursor_position.x <= this.draggable_toggles[i].x + 8 )
         && ( this.draggable_toggles[i].y - 4 <= cursor_position.y && cursor_position.y <= this.draggable_toggles[i].y + 8 )
         ) {
-          statuses.storeDraggingTemporaryData( KEYCODE_CURSOR, { type:"toggle", toggle: this.draggable_toggles[i], start_cursor_position: cursor_position } );
+          // box のサイズ変更時は、水平な関連線の接続状態をドラッグ開始時点で控えておく（ドラッグ中は常にこの状態を基準に補正する）
+          statuses.storeDraggingTemporaryData( KEYCODE_CURSOR, {
+            type: "toggle",
+            toggle: this.draggable_toggles[i],
+            start_cursor_position: cursor_position,
+            box_relation_snapshot: ( 0 != this.draggable_toggles[i].type.indexOf( "inner-" ) ? this._snapshotHorizontalBoxRelations( this.draggable_toggles[i].owner ) : null ),
+          } );
 
           // サイズ変更（矩形四辺・四隅）トグルの時だけ整列ガイド線の対象にする。
           //   関連線の始点・終点・中継点（inner-line系）はサイズ変更ではないので対象外。
@@ -5695,7 +5807,7 @@ function EditorScreen(){
       }
 
       // オブジェクトの変形
-      this._editUmlObjectSize( drag_starting_data.toggle.owner, drag_starting_data.toggle.type, cursor_position.x, cursor_position.y );
+      this._editUmlObjectSize( drag_starting_data.toggle.owner, drag_starting_data.toggle.type, cursor_position.x, cursor_position.y, drag_starting_data.box_relation_snapshot );
       this._editInnerUmlObjectSize( drag_starting_data.toggle.owner, drag_starting_data.toggle.inner_shape, drag_starting_data.toggle.type, cursor_position.x, cursor_position.y );
       this._moveInnerLine( drag_starting_data.toggle.owner, drag_starting_data.toggle.inner_shape, drag_starting_data.toggle.type, cursor_position.x, cursor_position.y, is_not_connection );
 
@@ -7995,7 +8107,7 @@ function EditorScreen(){
 
     // アプリケーション名
     this.application_name = "uml_draw_tool";
-    this.current_version = "v1.11.5";
+    this.current_version = "v1.11.6";
 
     // 画像管理を生成
     this.image_manager = ( new ImageManager() ).initialize(this);
