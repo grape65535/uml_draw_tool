@@ -2043,7 +2043,7 @@ function EditorScreen(){
         if ( ! own_line.relation || own_line.relation.id != uml_object.id || ! isHorizontalEdge( own_line.relation ) ) continue;
         if ( ! opposite_line.relation || ! isHorizontalEdge( opposite_line.relation ) ) continue;
         var opposite_uml_object = this._findUmlObjectById( opposite_line.relation.id );
-        if ( ! opposite_uml_object || "box" != opposite_uml_object.type || opposite_uml_object === uml_object ) continue;
+        if ( ! opposite_uml_object || "box" != opposite_uml_object.type ) continue;
 
         var relay_ys = [];
         for ( var k=1; k<inner_lines.length - 1; k++ ) relay_ys.push( inner_lines[k].y );
@@ -2057,6 +2057,7 @@ function EditorScreen(){
           own_y:                own_line.y,
           opposite_y:           opposite_line.y,
           relay_ys:             relay_ys,
+          is_self:              ( opposite_uml_object === uml_object ),   // 始点・終点が同じ box に接続している
         } );
       }
     }
@@ -2068,6 +2069,7 @@ function EditorScreen(){
   //   ・変更前の接続点が辺の途中なら、接続点の絶対座標（垂直位置）を保つ（辺の範囲外になった場合は辺の端に留める）
   //   ・変更前の接続点が辺の端（上端・下端）なら、辺の端に保ったまま、分割点と反対側の接続点も同じ量だけ垂直に移動する
   //     （反対側の接続点は、接続先の辺の端を越えない範囲に留める）
+  //   ・始点・終点が同じ box に接続している関連線は、辺の端かどうかに関わらず両端とも接続点の絶対座標（垂直位置）を保つ
   //--------------------------------------
   EditorScreen.prototype._applyHorizontalBoxRelationsOnResize = function( uml_object, snapshot ){
     for ( var i=0; i<snapshot.length; i++ ) {
@@ -2076,7 +2078,8 @@ function EditorScreen(){
       if ( ! own_line.relation || own_line.relation.id != uml_object.id ) continue;
 
       var distance = null;
-      var is_edge_end = ( 0 >= entry.distance || entry.height <= entry.distance );
+      // 始点・終点が同じ box に接続している関連線は、両端とも絶対座標を保つ（分割点・反対側は移動しない）
+      var is_edge_end = ( ! entry.is_self && ( 0 >= entry.distance || entry.height <= entry.distance ) );
       if ( is_edge_end ) {
         // 辺の端を維持する
         distance = ( 0 >= entry.distance ? 0 : uml_object.height );
@@ -8175,7 +8178,7 @@ function EditorScreen(){
 
     // アプリケーション名
     this.application_name = "uml_draw_tool";
-    this.current_version = "v1.11.8";
+    this.current_version = "v1.11.9";
 
     // 画像管理を生成
     this.image_manager = ( new ImageManager() ).initialize(this);
