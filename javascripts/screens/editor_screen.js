@@ -2146,11 +2146,32 @@ function EditorScreen(){
           if ( ! own_line.relation || own_line.relation.id != box_uml_object.id || ! isHorizontalEdge( own_line.relation ) ) continue;
           if ( ! opposite_line.relation || ! isHorizontalEdge( opposite_line.relation ) ) continue;
           var opposite_uml_object = this._findUmlObjectById( opposite_line.relation.id );
+
+          var relay_xs = [];
+          var relay_ys = [];
+          for ( var m=1; m<inner_lines.length - 1; m++ ) {
+            relay_xs.push( inner_lines[m].x );
+            relay_ys.push( inner_lines[m].y );
+          }
+
+          // 始点・終点が同じ box（自己参照）の関連線は、分割点を box と一緒に移動する（両端の接続点は box に追従する）
+          if ( opposite_uml_object === box_uml_object ) {
+            entries.push( {
+              relation_uml_object:  relation_uml_object,
+              box_uml_object:       box_uml_object,
+              box_x:                box_uml_object.x,
+              box_y:                box_uml_object.y,
+              relay_xs:             relay_xs,
+              relay_ys:             relay_ys,
+              is_moving_relation:   isIncludeArray( moving_uml_objects, relation_uml_object ),
+              is_self:              true,
+            } );
+            break;   // 始点・終点のどちらから見ても同じ関連線なので1つだけ記録する
+          }
+
           // 反対側も一緒に移動する図形の場合は対象外（関連線ごと平行移動する）
           if ( ! opposite_uml_object || "box" != opposite_uml_object.type || isIncludeArray( moving_leaves, opposite_uml_object ) ) continue;
 
-          var relay_ys = [];
-          for ( var m=1; m<inner_lines.length - 1; m++ ) relay_ys.push( inner_lines[m].y );
           entries.push( {
             relation_uml_object:  relation_uml_object,
             box_uml_object:       box_uml_object,
@@ -2171,10 +2192,25 @@ function EditorScreen(){
   //--------------------------------------
   // box の移動に合わせて、box 同士の水平な関連線の分割点と反対側の接続点を垂直方向に移動する（シーケンス図用）
   //   移動量は移動前（ドラッグ開始時）からの box の垂直方向の移動量とし、反対側の box の辺の端を越えない範囲に留める
+  //   始点・終点が同じ box（自己参照）の関連線は、分割点を box の移動量（水平・垂直とも）だけ移動する
   //--------------------------------------
   EditorScreen.prototype._applyMovingBoxRelations = function( snapshot ){
     for ( var i=0; i<snapshot.length; i++ ) {
       var entry = snapshot[i];
+
+      // 自己参照の関連線は、分割点を box の移動量（水平・垂直とも）だけ移動する
+      if ( entry.is_self ) {
+        if ( ! entry.is_moving_relation ) {
+          var inner_lines = entry.relation_uml_object.inner_lines;
+          for ( var k=1; k<inner_lines.length - 1 && k-1<entry.relay_ys.length; k++ ) {
+            inner_lines[k].x = entry.relay_xs[ k-1 ] + ( entry.box_uml_object.x - entry.box_x );
+            inner_lines[k].y = entry.relay_ys[ k-1 ] + ( entry.box_uml_object.y - entry.box_y );
+          }
+          this._normalizationUmlObjectSizeByInnerLine( entry.relation_uml_object );
+        }
+        continue;
+      }
+
       var opposite_line = entry.opposite_line;
       var opposite_uml_object = entry.opposite_uml_object;
       if ( ! opposite_line.relation || opposite_line.relation.id != opposite_uml_object.id ) continue;
@@ -8270,7 +8306,7 @@ function EditorScreen(){
 
     // アプリケーション名
     this.application_name = "uml_draw_tool";
-    this.current_version = "v1.11.11";
+    this.current_version = "v1.11.12";
 
     // 画像管理を生成
     this.image_manager = ( new ImageManager() ).initialize(this);
