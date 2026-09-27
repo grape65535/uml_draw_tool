@@ -6794,8 +6794,15 @@ function EditorScreen(){
         height: obstacle.height + ROUTE_PADDING * 2,
         original: { x: obstacle.x, y: obstacle.y, width: obstacle.width, height: obstacle.height },
         allowance: ROUTE_PADDING * 2,
+        // シーケンス図用: box同士を水平方向に接続する経路では、上に重なっても良い図形
+        is_passable_on_horizontal_box_route: ( obstacle !== start_uml_object && obstacle !== end_uml_object && isIncludeArray( [ "box", "vertical_line", "horizontal_line" ], obstacle.type ) ),
       } );
     }
+    // box同士を水平方向（左右の辺どうし）に接続する経路の障害物
+    //   シーケンス図で、垂直に並んだ vertical_line（ライフライン）と box（実行仕様）の間を水平に接続できる様に、
+    //   他の box・vertical_line・horizontal_line の上には重なっても良いものとする
+    var is_box_pair = ( "box" == start_uml_object.type && "box" == end_uml_object.type );
+    var horizontal_box_route_obstacles = obstacles.filter( function( obstacle ){ return ! obstacle.is_passable_on_horizontal_box_route; } );
 
     // 迂回経路の通り道の候補（接続元・接続先の周囲、及び周辺の図形の外側）
     var around_rect = this._getRectByUmlObjects( [ start_uml_object, end_uml_object ] );
@@ -6825,6 +6832,8 @@ function EditorScreen(){
         if ( ! start_contact || ! end_contact ) continue;
         var start_point = start_contact.contact;
         var end_point = end_contact.contact;
+        // 左右（1:右、3:左）の辺どうしで接続する box 同士の経路のみ、重なって良い図形を障害物から除く
+        var route_obstacles = ( is_box_pair && 1 == start_direction % 2 && 1 == end_direction % 2 ) ? horizontal_box_route_obstacles : obstacles;
 
         // 図形から垂直に離れた点
         var start_stub = { x: start_point.x + DIRECTION_VECTORS[ start_direction ].x * MARGIN, y: start_point.y + DIRECTION_VECTORS[ start_direction ].y * MARGIN };
@@ -6843,7 +6852,7 @@ function EditorScreen(){
 
         for ( var k=0; k<candidates.length; k++ ) {
           var points = this._simplifyRoutePoints( candidates[k] );
-          var cost = this._evaluateRouteCost( points, obstacles );
+          var cost = this._evaluateRouteCost( points, route_obstacles );
           if ( ! best || cost < best.cost ) {
             best = {
               cost:           cost,
@@ -7932,7 +7941,7 @@ function EditorScreen(){
 
     // アプリケーション名
     this.application_name = "uml_draw_tool";
-    this.current_version = "v1.11.2";
+    this.current_version = "v1.11.3";
 
     // 画像管理を生成
     this.image_manager = ( new ImageManager() ).initialize(this);
