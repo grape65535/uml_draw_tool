@@ -2111,6 +2111,79 @@ function EditorScreen(){
   };
 
   //--------------------------------------
+  // 移動する box と、別の box とを水平方向（左右の辺どうし）に接続している関連線の、移動前の接続状態を控える
+  //   移動する図形（グループは末端まで展開）のうちの box について、関連線の反対側が移動しない別の box の左右の辺に
+  //   接続している場合に、移動する box の垂直位置と反対側の接続点の垂直位置を記録する。対象が無ければ null を返す。
+  //--------------------------------------
+  EditorScreen.prototype._snapshotMovingBoxRelations = function( moving_uml_objects ){
+    // 移動する末端の図形
+    var moving_leaves = [];
+    for ( var i=0; i<moving_uml_objects.length; i++ ) {
+      if ( "relation" == moving_uml_objects[i].type ) continue;
+      if ( "group" == moving_uml_objects[i].type ) moving_leaves.push( ...this._collectRouteObstacleUmlObjects( moving_uml_objects[i] ) );
+      else moving_leaves.push( moving_uml_objects[i] );
+    }
+
+    var isHorizontalEdge = function( relation ){
+      return relation && relation.anchor && "edge" == relation.anchor.kind && isIncludeArray( [ "left", "right" ], relation.anchor.edge );
+    };
+    var entries = [];
+    for ( var i=0; i<moving_leaves.length; i++ ) {
+      var box_uml_object = moving_leaves[i];
+      if ( "box" != box_uml_object.type || ! box_uml_object.relation_ids ) continue;
+
+      // 上辺・下辺の端（角）への接続は、左辺・右辺の端への接続に付け替えてから控える
+      this._moveBoxCornerRelationsToSideEdge( box_uml_object );
+
+      for ( var j=0; j<box_uml_object.relation_ids.length; j++ ) {
+        var relation_uml_object = this._findUmlObjectById( box_uml_object.relation_ids[j] );
+        if ( ! relation_uml_object || "relation" != relation_uml_object.type ) continue;
+        var inner_lines = relation_uml_object.inner_lines;
+        var ends = [ 0, inner_lines.length - 1 ];
+        for ( var k=0; k<ends.length; k++ ) {
+          var own_line = inner_lines[ ends[k] ];
+          var opposite_line = inner_lines[ ends[ 1 - k ] ];
+          if ( ! own_line.relation || own_line.relation.id != box_uml_object.id || ! isHorizontalEdge( own_line.relation ) ) continue;
+          if ( ! opposite_line.relation || ! isHorizontalEdge( opposite_line.relation ) ) continue;
+          var opposite_uml_object = this._findUmlObjectById( opposite_line.relation.id );
+          // 反対側も一緒に移動する図形の場合は対象外（関連線ごと平行移動する）
+          if ( ! opposite_uml_object || "box" != opposite_uml_object.type || isIncludeArray( moving_leaves, opposite_uml_object ) ) continue;
+
+          entries.push( {
+            relation_uml_object:  relation_uml_object,
+            box_uml_object:       box_uml_object,
+            box_y:                box_uml_object.y,
+            opposite_line:        opposite_line,
+            opposite_uml_object:  opposite_uml_object,
+            opposite_y:           opposite_line.y,
+          } );
+        }
+      }
+    }
+    return ( 0 < entries.length ? entries : null );
+  };
+
+  //--------------------------------------
+  // box の移動に合わせて、box 同士の水平な関連線の反対側の接続点を垂直方向に移動する（シーケンス図用）
+  //   移動量は移動前（ドラッグ開始時）からの box の垂直方向の移動量とし、反対側の box の辺の端を越えない範囲に留める
+  //--------------------------------------
+  EditorScreen.prototype._applyMovingBoxRelations = function( snapshot ){
+    for ( var i=0; i<snapshot.length; i++ ) {
+      var entry = snapshot[i];
+      var opposite_line = entry.opposite_line;
+      var opposite_uml_object = entry.opposite_uml_object;
+      if ( ! opposite_line.relation || opposite_line.relation.id != opposite_uml_object.id ) continue;
+
+      var move_amount_y = entry.box_uml_object.y - entry.box_y;
+      var y = Math.max( opposite_uml_object.y, Math.min( opposite_uml_object.y + opposite_uml_object.height, entry.opposite_y + move_amount_y ) );
+      this._setHorizontalBoxRelationContactY( opposite_line, opposite_uml_object, y );
+
+      // 内部線からUMLオブジェクト矩形を正規化する
+      this._normalizationUmlObjectSizeByInnerLine( entry.relation_uml_object );
+    }
+  };
+
+  //--------------------------------------
   // box の左右の辺に接続している関連線の接続点を、指定の垂直位置へ移動する（anchorの比率も更新する）
   //--------------------------------------
   EditorScreen.prototype._setHorizontalBoxRelationContactY = function( inner_line, box_uml_object, y ){
@@ -6028,10 +6101,12 @@ function EditorScreen(){
             }
 
             // ドラッグ情報として開始座標（紙上のオフセット座標）を記録
+            //   box 同士の水平な関連線の反対側の接続点を追従させるため、ドラッグ開始時点の接続状態も記録する
             statuses.storeDraggingTemporaryData( KEYCODE_CURSOR, {
               type: "move",
               drag_start_cursor_position: cursor_position,
-              drag_start_position_map: drag_start_position_map
+              drag_start_position_map: drag_start_position_map,
+              box_relation_move_snapshot: this._snapshotMovingBoxRelations( selected_uml_objects ),
             } );
           }
 
@@ -6104,6 +6179,8 @@ function EditorScreen(){
         // グループ内メンバーを移動した場合は、親グループの包含矩形を追従させる
         this._updateParentGroupRect( selected_uml_objects[i] );
       }
+      // box 同士の水平な関連線は、反対側の box の接続点も垂直方向に追従させる（シーケンス図用）
+      if ( drag_starting_data.box_relation_move_snapshot ) this._applyMovingBoxRelations( drag_starting_data.box_relation_move_snapshot );
 
       // 画面端ならここでスクロールもさせる
       this._scrollPaperForDragging( statuses );
@@ -8178,7 +8255,7 @@ function EditorScreen(){
 
     // アプリケーション名
     this.application_name = "uml_draw_tool";
-    this.current_version = "v1.11.9";
+    this.current_version = "v1.11.10";
 
     // 画像管理を生成
     this.image_manager = ( new ImageManager() ).initialize(this);
