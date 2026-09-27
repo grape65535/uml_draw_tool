@@ -654,22 +654,29 @@ function EditorScreen(){
       }
     }
     if ( ! nearest ) return null;
+    return this._buildOutlineContact( uml_object, nearest_primitive, nearest, x, y );
+  };
 
+  //--------------------------------------
+  // 輪郭プリミティブ上の点（_getNearestPointOnOutlinePrimitive の戻り値）から接点情報を構築する
+  //   x, y は接点を求めた元の座標（is_inside の判定に使う）
+  //--------------------------------------
+  EditorScreen.prototype._buildOutlineContact = function( uml_object, primitive, nearest, x, y ){
     // 接続情報（anchor）を構築する。矩形辺は従来のルーティング互換のため辺名をbase_typeにする
-    var anchor = { kind: nearest_primitive.kind };
+    var anchor = { kind: primitive.kind };
     var base_type = null;
-    switch ( nearest_primitive.kind ) {
+    switch ( primitive.kind ) {
     case "edge":
-      anchor.edge = nearest_primitive.edge;
+      anchor.edge = primitive.edge;
       anchor.ratio = nearest.ratio;
-      base_type = nearest_primitive.edge;
+      base_type = primitive.edge;
       break;
     case "polygon":
-      anchor.edge_index = nearest_primitive.edge_index;
+      anchor.edge_index = primitive.edge_index;
       anchor.ratio = nearest.ratio;
       break;
     case "line":
-      anchor.shape_key = nearest_primitive.shape_key;
+      anchor.shape_key = primitive.shape_key;
       anchor.ratio = nearest.ratio;
       break;
     case "circle":
@@ -691,8 +698,51 @@ function EditorScreen(){
   };
 
   //--------------------------------------
+  // 輪郭上の吸着点（特徴点・整列点）への接点情報を取得する
+  //   吸着点が複数の輪郭プリミティブの共有点（角・頂点など辺の端）の場合は、
+  //     1. 直前に接続していた輪郭（previous_anchor と同じ辺）
+  //     2. カーソル座標（cursor_x, cursor_y）に最も近い輪郭
+  //   の順に優先して接続する辺を決める。
+  //--------------------------------------
+  EditorScreen.prototype._getOutlineContactAtSnapPoint = function( uml_object, snap_x, snap_y, cursor_x, cursor_y, previous_anchor ){
+    var isSameAnchorPrimitive = function( primitive, anchor ){
+      if ( ! anchor || primitive.kind != anchor.kind ) return false;
+      switch ( primitive.kind ) {
+      case "edge":    return primitive.edge == anchor.edge;
+      case "polygon": return primitive.edge_index == anchor.edge_index;
+      case "line":    return primitive.shape_key == anchor.shape_key;
+      }
+      return true;
+    };
+
+    var primitives = this._getUmlObjectOutlinePrimitives( uml_object );
+    var best = null;
+    for ( var i=0; i<primitives.length; i++ ) {
+      // 吸着点を通る輪郭のみを候補とする
+      var on_point = this._getNearestPointOnOutlinePrimitive( primitives[i], snap_x, snap_y );
+      if ( 0.5 < on_point.distance ) continue;
+
+      var candidate = {
+        primitive:        primitives[i],
+        point:            on_point,
+        is_previous:      isSameAnchorPrimitive( primitives[i], previous_anchor ),
+        cursor_distance:  this._getNearestPointOnOutlinePrimitive( primitives[i], cursor_x, cursor_y ).distance,
+      };
+      if (
+         ! best
+      || ( candidate.is_previous && ! best.is_previous )
+      || ( candidate.is_previous == best.is_previous && candidate.cursor_distance < best.cursor_distance )
+      ) {
+        best = candidate;
+      }
+    }
+    if ( ! best ) return this._getDistanceUmlObjectOutlineByPoint( uml_object, snap_x, snap_y );
+    return this._buildOutlineContact( uml_object, best.primitive, best.point, snap_x, snap_y );
+  };
+
+  //--------------------------------------
   // 輪郭上の「特徴点」一覧を取得する（接続時の吸着候補）
-  //   円・楕円=上下左右の4極点 / 多角形=頂点＋辺の中点 / 矩形辺=辺の中点 / 線=両端＋中点
+  //   円・楕円=上下左右の4極点 / 多角形=頂点＋辺の中点 / 矩形辺=辺の両端（角）＋辺の中点 / 線=両端＋中点
   //--------------------------------------
   EditorScreen.prototype._getUmlObjectOutlineFeaturePoints = function( uml_object ){
     var primitives = this._getUmlObjectOutlinePrimitives( uml_object );
@@ -716,6 +766,8 @@ function EditorScreen(){
         feature_points.push( { x: ( primitive.start.x + primitive.end.x ) / 2, y: ( primitive.start.y + primitive.end.y ) / 2 } );
         break;
       case "edge":
+        feature_points.push( { x: primitive.start.x, y: primitive.start.y } );
+        feature_points.push( { x: primitive.end.x,   y: primitive.end.y } );
         feature_points.push( { x: ( primitive.start.x + primitive.end.x ) / 2, y: ( primitive.start.y + primitive.end.y ) / 2 } );
         break;
       }
@@ -2461,6 +2513,9 @@ function EditorScreen(){
     switch ( type ) {
     case "inner-line-start":
     case "inner-line-end":
+      // 直前に接続していた輪郭（角などの辺の端へ吸着する時に、どちらの辺を優先するかに使う）
+      var previous_relation = inner_shape.relation;
+
       // 前回のリンク先情報を初期化する
       if ( inner_shape.relation ) {
         old_dest_uml_object = this._findUmlObjectById( inner_shape.relation.id );
@@ -2484,16 +2539,20 @@ function EditorScreen(){
           if ( neighbor_inner_line ) {
             feature_points = feature_points.concat( this._getUmlObjectOutlineAlignedPoints( contact.owner, neighbor_inner_line.x, neighbor_inner_line.y ) );
           }
+          // 吸着範囲（輪郭上の接点から grid/2 以内）にある吸着点のうち、カーソル座標に最も近いものへ吸着する
           var nearest_feature = null;
           for ( var i=0; i<feature_points.length; i++ ) {
             var feature_distance = Math.sqrt( Math.pow( contact.contact.x - feature_points[i].x, 2 ) + Math.pow( contact.contact.y - feature_points[i].y, 2 ) );
-            if ( feature_distance <= ( this.grid_size / 2 ) && ( ! nearest_feature || feature_distance < nearest_feature.distance ) ) {
-              nearest_feature = { x: feature_points[i].x, y: feature_points[i].y, distance: feature_distance };
+            if ( feature_distance > ( this.grid_size / 2 ) ) continue;
+            var cursor_distance = Math.sqrt( Math.pow( x - feature_points[i].x, 2 ) + Math.pow( y - feature_points[i].y, 2 ) );
+            if ( ! nearest_feature || cursor_distance < nearest_feature.cursor_distance ) {
+              nearest_feature = { x: feature_points[i].x, y: feature_points[i].y, cursor_distance: cursor_distance };
             }
           }
           if ( nearest_feature ) {
-            // 特徴点を輪郭に射影し直して接点・anchorを再構築する（特徴点は輪郭上なので実質そのまま）
-            var feature_contact = this._getDistanceUmlObjectOutlineByPoint( contact.owner, nearest_feature.x, nearest_feature.y );
+            // 吸着点への接点・anchorを再構築する（角などの辺の端は、直前に接続していた辺→カーソルに近い辺の順に優先する）
+            var previous_anchor = ( previous_relation && previous_relation.id == contact.owner.id ) ? previous_relation.anchor : null;
+            var feature_contact = this._getOutlineContactAtSnapPoint( contact.owner, nearest_feature.x, nearest_feature.y, x, y, previous_anchor );
             if ( feature_contact ) contact = feature_contact;
           }
 
@@ -8306,7 +8365,7 @@ function EditorScreen(){
 
     // アプリケーション名
     this.application_name = "uml_draw_tool";
-    this.current_version = "v1.11.12";
+    this.current_version = "v1.11.13";
 
     // 画像管理を生成
     this.image_manager = ( new ImageManager() ).initialize(this);
